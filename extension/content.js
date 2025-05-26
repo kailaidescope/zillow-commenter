@@ -3,16 +3,8 @@ console.log("Site:", site);
 
 console.log("Content script loaded");
 alert("Content script loaded");
-InsertHtml();
 
-// Wait for the DOM to be fully loaded
-document.addEventListener('DOMContentLoaded', function () {
-    console.log("DOM fully loaded and parsed");
-    alert("Dom loaded");
-    InsertHtml();
-});
-
-function InsertHtml() {
+/* function InsertHtml() {
     alert("InsertHtml function called");
     // Find the first element with the class 'layout-static-column-container'
     const container = document.querySelector('.layout-static-column-container');
@@ -25,4 +17,4 @@ function InsertHtml() {
         // Insert the header before the container in the DOM
         container.parentNode.insertBefore(header, container);
     }
-}
+} */

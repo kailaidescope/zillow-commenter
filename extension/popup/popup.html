@@ -6,17 +6,41 @@
     <link rel="stylesheet" href="popup.css"/>
 </head>
 <body>
+    <div class="tabs">
+        <button class="tab active" data-tab="comments">Comments</button>
+        <button class="tab" data-tab="about">About</button>
+        <button class="tab" data-tab="template">Template</button>
+    </div>
     <div class="popup-container">
-        <h1>Zillow Commenter</h1>
-        <p>
-            <strong>Zillow Commenter</strong> is a Chrome extension that lets you add and view comments on Zillow listings, making house hunting more interactive and fun!
-        </p>
-        <p>
-            This idea was inspired by a <a href="https://x.com/hankgreen/status/1479509887373643780" target="_blank">Hank Green</a> post on Twitter, where he imagined what it would be like if people could leave comments on Zillow homes—just like on social media.
-        </p>
-        <p>
-            Use this extension to share your thoughts, jokes, or insights on any Zillow property you find!
-        </p>
+        <div class="tab-content active" id="comments">
+            <h1>Comments</h1>
+            <div class="comment-input-section">
+                <textarea id="comment-input" rows="3" placeholder="Write your comment here..."></textarea>
+                <button id="submit-comment">Submit</button>
+            </div>
+            <ul class="comments-list">
+                <li><strong>Alice:</strong> Love the kitchen in this house!</li>
+                <li><strong>Bob:</strong> Backyard looks perfect for summer BBQs.</li>
+                <li><strong>Charlie:</strong> Wish it had a bigger garage.</li>
+            </ul>
+        </div>
+        <div class="tab-content" id="about">
+            <h1>About</h1>
+            <p>
+                <strong>Zillow Commenter</strong> is a Chrome extension that lets you add and view comments on Zillow listings, making house hunting more interactive and fun!
+            </p>
+            <p>
+                This idea was inspired by a <a href="https://x.com/hankgreen/status/1479509887373643780" target="_blank">Hank Green</a> post on Twitter, where he imagined what it would be like if people could leave comments on Zillow homes—just like on social media.
+            </p>
+            <p>
+                Use this extension to share your thoughts, jokes, or insights on any Zillow property you find!
+            </p>
+        </div>
+        <div class="tab-content" id="template">
+            <h1>Template</h1>
+            <p>Here you can manage your comment templates.</p>
+            <!-- Template UI goes here -->
+        </div>
     </div>
     <script src="popup.js"></script>
 </body>

@@ -1,28 +1,42 @@
 :root {
+    /* Font families */
+    --font-family-base: Arial, sans-serif;
+
+    /* Font sizes */
     --font-size-small: 1em;
     --font-size-medium: 1.15em;
     --font-size-large: 2em;
 
+    /* Font weights */
     --font-weight-normal: 400;
     --font-weight-medium: 500;
     --font-weight-bold: 700;
 
+    /* Colors */
     --color-primary: #006aff;
     --color-bg: #f8f9fa;
+    --color-bg-alt: #fff;
+    --color-bg-body: #f7f7f7;
     --color-text: #222;
+    --color-text-secondary: #555;
     --color-shadow: rgba(0,0,0,0.1);
+    --color-shadow-light: rgba(0,0,0,0.04);
+    --color-border: #ddd;
+    --color-tab-active: #1976d2;
+    --color-tab-bg: #f9f9f9;
 }
 
 /* Popup styles */
 .popup-container {
     width: 320px;
     padding: 20px;
-    font-family: Arial, sans-serif;
-    background: var(--color-bg);
-    border-radius: 8px;
-    box-shadow: 0 2px 8px var(--color-shadow);
+    font-family: var(--font-family-base);
+    background: var(--color-bg-alt);
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 2px 8px var(--color-shadow-light);
     font-size: var(--font-size-medium);
     font-weight: var(--font-weight-normal);
+    min-height: 200px;
 }
 h1 {
     font-size: var(--font-size-large);
@@ -44,4 +58,42 @@ p {
     font-weight: var(--font-weight-normal);
     margin-bottom: 12px;
     color: var(--color-text);
+}
+
+body {
+    font-family: var(--font-family-base);
+    margin: 0;
+    min-width: 320px;
+    min-height: 320px;
+    background: var(--color-bg-body);
+}
+.tabs {
+    display: flex;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-alt);
+}
+.tab {
+    flex: 1;
+    padding: 12px 0;
+    text-align: center;
+    cursor: pointer;
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-secondary);
+    background: var(--color-tab-bg);
+    border: none;
+    outline: none;
+    transition: background 0.2s;
+    font-size: var(--font-size-medium);
+    font-family: var(--font-family-base);
+}
+.tab.active {
+    color: var(--color-tab-active);
+    border-bottom: 2px solid var(--color-tab-active);
+    background: var(--color-bg-alt);
+}
+.tab-content {
+    display: none;
+}
+.tab-content.active {
+    display: block;
 }
