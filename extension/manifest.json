@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Zillow Commenter",
+  "version": "1.0",
+  "description": "A Chrome extension to comment on Zillow listings",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.zillow.com/homedetails/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "permissions": ["activeTab"],
+  "icons": {
+    "128": "images/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html"
+  }
+}

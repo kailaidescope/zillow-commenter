@@ -1,0 +1,47 @@
+:root {
+    --font-size-small: 1em;
+    --font-size-medium: 1.15em;
+    --font-size-large: 2em;
+
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-bold: 700;
+
+    --color-primary: #006aff;
+    --color-bg: #f8f9fa;
+    --color-text: #222;
+    --color-shadow: rgba(0,0,0,0.1);
+}
+
+/* Popup styles */
+.popup-container {
+    width: 320px;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    background: var(--color-bg);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px var(--color-shadow);
+    font-size: var(--font-size-medium);
+    font-weight: var(--font-weight-normal);
+}
+h1 {
+    font-size: var(--font-size-large);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: 10px;
+    color: var(--color-primary);
+}
+a {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: var(--font-size-small);
+    font-weight: var(--font-weight-medium);
+}
+a:hover {
+    text-decoration: underline;
+}
+p {
+    font-size: var(--font-size-medium);
+    font-weight: var(--font-weight-normal);
+    margin-bottom: 12px;
+    color: var(--color-text);
+}
