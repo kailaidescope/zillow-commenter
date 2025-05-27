@@ -14,15 +14,26 @@
     <div class="popup-container">
         <div class="tab-content active" id="comments">
             <h1>Comments</h1>
-            <div class="comment-input-section">
-                <textarea id="comment-input" rows="3" placeholder="Write your comment here..."></textarea>
-                <button id="submit-comment">Submit</button>
+            <div class="comments-list-section">
+                <ul class="comments-list">
+                    <li class="comment-item alice">
+                        <strong>Alice:</strong> Love the kitchen in this house!
+                    </li>
+                    <li class="comment-item bob">
+                        <strong>Bob:</strong> Backyard looks perfect for summer BBQs.
+                    </li>
+                    <li class="comment-item charlie">
+                        <strong>Charlie:</strong> Wish it had a bigger garage.
+                    </li>
+                </ul>
             </div>
-            <ul class="comments-list">
-                <li><strong>Alice:</strong> Love the kitchen in this house!</li>
-                <li><strong>Bob:</strong> Backyard looks perfect for summer BBQs.</li>
-                <li><strong>Charlie:</strong> Wish it had a bigger garage.</li>
-            </ul>
+            <div class="comment-input-section">
+                <form id="comment-form">
+                    <input type="text" id="username-input" name="username" maxlength="20" placeholder="Your name" required>
+                    <textarea id="comment-input" name="comment" rows="3" placeholder="Write your comment here..." required></textarea>
+                    <button type="submit" id="submit-comment">Submit</button>
+                </form>
+            </div>
         </div>
         <div class="tab-content" id="about">
             <h1>About</h1>
@@ -37,10 +48,11 @@
             </p>
         </div>
         <div class="tab-content" id="template">
+            <!-- Template UI tab -->
             <h1>Template</h1>
-            <p>Here you can manage your comment templates.</p>
-            <!-- Template UI goes here -->
+            <p>This is a template UI tab.</p>
         </div>
     </div>
-    <script src="popup.js"></script>
+    <script type="module" src="popup.js"></script>
 </body>
+</html>
