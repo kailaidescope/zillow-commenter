@@ -72,20 +72,122 @@ const sampleCommentObjects = [
 ];
 
 // Function to populate comments list in the DOM
-function populateComments(comments) {
-    const commentsList = document.querySelector('.comments-list');
-    console.log('Populating comments:', comments, commentsList);
-    if (!commentsList) return;
-    commentsList.innerHTML = '';
+async function populateComments() {
+    // Get comments element from the DOM
+    const commentsListElement = document.querySelector('.comments-list');
+    console.log('Populating comments.');
+    if (!commentsListElement) return;
+
+    // Clear existing comments
+    commentsListElement.innerHTML = '';
+
+    const listingId = await getListingID();
+
+    if (!listingId) {
+        displayComments(null);
+        console.error("No valid listing ID found in the current URL.");
+        return;
+    }
+
+    // Fetch comments from the API using the listing ID
+    getCommentsByListingId(listingId, displayComments);
+}
+
+// Function to display comments in the list
+function displayComments(result, error=null) {
+    // Get comments element from the DOM
+    const commentsListElement = document.querySelector('.comments-list');
+    if (!commentsListElement) return;
+    
+    // Clear existing comments
+    commentsListElement.innerHTML = '';
+
+    if (error) {
+        console.error('Error fetching comments:', error);
+        const li = document.createElement('li');
+        li.innerHTML = '<strong>Error fetching comments.</strong> Please try again later.';
+        commentsListElement.appendChild(li);
+        const submitButton = document.querySelector('#comment-form button[type="submit"]');
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.style.backgroundColor = '#ccc';
+        }
+        return;
+    }
+
+    let comments = null;
+
+    //console.log('Fetched comments:', result);
+    if (result) {
+        try {
+            comments = JSON.parse(result);
+            //console.log('Parsed comments:', comments);
+        } catch (error) {
+            console.error('Error parsing comments:', error);
+            const li = document.createElement('li');
+            li.textContent = 'Error loading comments.';
+            commentsListElement.appendChild(li);
+            return;
+        }
+    } else {
+        const li = document.createElement('li');
+        li.textContent = 'No comments found for this listing.';
+        commentsListElement.appendChild(li);
+        return;
+    }
+
+    // Check if there are any comments
+    if (comments !== null) {
+        console.log('Displaying comments: ', comments.length);
+    } else {
+        console.log('Displaying comments: comments is null');
+    }
+
+    if (!comments || !Array.isArray(comments)) {
+        console.error('Invalid comments data:', comments);
+    }
+
+    if (!comments || comments.length === 0) {
+        // If no comments, display a message
+        const li = document.createElement('li');
+        li.textContent = 'No comments available for this listing.';
+        commentsListElement.appendChild(li);
+        return;
+    }
+
+    // Populate the comments list
     comments.forEach(comment => {
         const li = document.createElement('li');
-        li.innerHTML = `<strong>${comment.username}</strong> (${comment.datePosted}):<br>${comment.commentText}`;
-        commentsList.appendChild(li);
+        // Convert Unix second timestamp to readable date or time
+        let dateStr = 'Unknown date';
+        if (comment.timestamp) {
+            // Multiply by 1000 to convert seconds to milliseconds
+            const dateObj = new Date(Number(comment.timestamp) * 1000);
+            const now = new Date();
+            const diffMs = now - dateObj;
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            const isToday =
+                dateObj.getFullYear() === now.getFullYear() &&
+                dateObj.getMonth() === now.getMonth() &&
+                dateObj.getDate() === now.getDate();
+
+            if (isToday) {
+                dateStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } else if (diffDays === 1) {
+                dateStr = "1 day ago";
+            } else if (diffDays > 1 && diffDays < 7) {
+                dateStr = `${diffDays} days ago`;
+            } else if (diffDays >= 7) {
+                dateStr = dateObj.toLocaleDateString();
+            }
+        }
+        li.innerHTML = `<strong>${comment.username}</strong> <span style="font-size: 0.85em; color: #555;">${dateStr}</span><br>${comment.comment_text}`;
+        commentsListElement.appendChild(li);
     });
 }
 
-// Example usage: populate with sample comments
-populateComments(sampleCommentObjects);
+// Call this function to populate comments when the popup is opened
+populateComments();
 
 // Function to show the current URL in the comments tab
 function displayURL() {
@@ -108,35 +210,88 @@ function displayURL() {
     }
 }
 
-// Call the function to display the current URL in the comments tab
+// Call this function to display the current URL in the comments tab
 //displayURL()
 
 
-document.getElementById('comment-form').addEventListener('submit', handleCommentSubmit);
+// Handles the comment form submission
+document.getElementById('comment-form').addEventListener('submit', handleCommentSubmission);
 
 // Compiles the form data and user data into a struct for submission
-async function handleCommentSubmit(event) {
+async function handleCommentSubmission(event) {
+    // Stop default form submission behavior
     event.preventDefault();
+
+    // Disable the form for 5 seconds to prevent multiple submissions
+    const submitButton = event.target.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    submitButton.style.backgroundColor = '#ccc';
+    setTimeout(() => {
+        submitButton.disabled = false;
+        submitButton.style.backgroundColor = '';
+    }, 3000);
+
+    // Get comment data
     const username = document.getElementById('username-input').value.trim();
     const commentText = document.getElementById('comment-input').value.trim();
-    const datePosted = new Date().toISOString().split('T')[0];
-
-    let targetZillowPage = '';
-    // Get the current tab's URL using the Chrome extension API
-    const tabs = await chrome.tabs.query({ currentWindow: true, active: true });
-    if (tabs.length > 0 && tabs[0].url) {
-        targetZillowPage = tabs[0].url;
+    const listingId = await getListingID();
+    if (!listingId) {
+        console.error("No valid listing ID found in the current URL.");
+        return;
     }
 
+    // Compile the comment object
     const commentObj = {
         userId: getUserId(),
-        target_zillow_page: targetZillowPage,
-        datePosted,
-        username,
-        commentText
+        listingId: listingId,
+        username: username,
+        commentText: commentText,
     };
+
     //console.log('Form submission:', commentObj);
-    displaySubmittedComment(commentObj)
+
+    // Display and post the comment
+    //displaySubmittedComment(commentObj)
+    postComment(commentObj, displayComments);
+
+    // Clear the form fields after submission
+    document.getElementById('username-input').value = '';
+    document.getElementById('comment-input').value = '';
+}
+
+// Gets the listing ID from the current URL
+// Zillow's URL format is "https://www.zillow.com/homedetails/listing-street-name/1234567890_zpid/", 
+// from which you would extract "1234567890"
+async function getListingID() {
+    let listingURL = '';
+    // Get the current tab's URL using the Chrome extension API
+    const tabs = await chrome.tabs.query({ currentWindow: true, active: true });
+    //console.log("Current tabs:", tabs);
+    if (tabs.length > 0 && tabs[0].url) {
+        listingURL = tabs[0].url;
+    }
+
+    // Extract the listing ID from the URL
+
+    // Find section of the URL that ends with "_zpid"
+    const urlParts = listingURL.split('/');
+    const zpidIndex = urlParts.findIndex(part => part.endsWith('_zpid'));
+    
+    if (zpidIndex !== -1 && urlParts[zpidIndex]) {
+        // Gets the listing ID by removing the "_zpid" suffix
+        const listingID = urlParts[zpidIndex].replace('_zpid', '');
+        //console.log("Listing ID found:", listingID);
+        return listingID;
+    }
+    // If no valid listing ID is found, return null
+    // Disable the submit button and show an error message
+    const submitButton = document.querySelector('#comment-form button[type="submit"]');
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.style.backgroundColor = '#ccc';
+    }
+    console.error("No valid listing ID found in the current URL.");
+    return null; // No valid listing ID found
 }
 
 // Displays the submitted comment in the extension popup
@@ -154,12 +309,59 @@ function displaySubmittedComment(commentObj) {
     submittedSection.innerHTML = `
         <h4>Submitted Comment</h4>
         <div><strong>Username:</strong> ${commentObj.username}</div>
-        <div><strong>Date:</strong> ${commentObj.datePosted}</div>
         <div><strong>Comment:</strong> ${commentObj.commentText}</div>
-        <div><strong>Page:</strong> ${commentObj.target_zillow_page}</div>
+        <div><strong>Page:</strong> ${commentObj.listingId}</div>
         <div><strong>User ID:</strong> ${commentObj.userId}</div>
     `;
+}
 
-    sampleCommentObjects.push(commentObj);
-    populateComments(sampleCommentObjects);
+// Fetches the list of comments for a specific listing from the API
+function getCommentsByListingId(listingId, callbackFunc) {
+    if (!listingId) {
+        console.error("No valid listing ID provided.");
+        return [];
+    }
+
+    var requestOptions = {
+    method: 'GET',
+    redirect: 'follow'
+    };
+
+    fetch("http://localhost:3000/api/v1/comments/"+listingId, requestOptions)
+        .then(response => response.text())
+        .then(result => callbackFunc(result))
+        .catch(error => callbackFunc(null, error));
+}
+
+async function postComment(commentObj, callbackFunc) {
+
+    // Collect comment data
+    let listingId = await getListingID();
+    if (!listingId) {
+        console.error("No valid listing ID found in the current URL.");
+        return;
+    }
+
+    // Prepare form data for API
+    var myHeaders = new Headers();
+    myHeaders.append("Content-Type", "application/x-www-form-urlencoded");
+
+    var urlencoded = new URLSearchParams();
+    urlencoded.append("listing_id", listingId);
+    urlencoded.append("user_id", getUserId());
+    urlencoded.append("username", commentObj.username);
+    urlencoded.append("comment_text", commentObj.commentText);
+
+    var requestOptions = {
+    method: 'POST',
+    headers: myHeaders,
+    body: urlencoded,
+    redirect: 'follow'
+    };
+
+    // Send POST request to the API
+    fetch("http://localhost:3000/api/v1/comments", requestOptions)
+        .then(response => response.text())
+        .then(result => callbackFunc(result))
+        .catch(error => callbackFunc(null, error));
 }

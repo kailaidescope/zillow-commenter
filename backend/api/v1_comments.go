@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -51,11 +52,12 @@ func (server *Server) GetListingComments(c *gin.Context) {
 // POST api/v1/comments
 //
 // Input:
-//   - JSON body containing the following fields:
-//   - target_listing: The zillow listing ID to which the comment is related.
-//   - user_id: The ID of the user making the comment.
-//   - username: The username of the user making the comment.
-//   - comment_text: The text of the comment.
+//
+//	Post form containing the following fields:
+//	- listing_id: The zillow listing ID to which the comment is related.
+//	- user_id: The ID of the user making the comment.
+//	- username: The username of the user making the comment.
+//	- comment_text: The text of the comment.
 //
 // Output:
 //   - 201: A JSON object representing the created comment.
@@ -71,6 +73,9 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	userID := c.PostForm("user_id")
 	username := c.PostForm("username")
 	commentText := c.PostForm("comment_text")
+
+	log.Printf("PostListingComment called with listing_id: %s, user_id: %s, username: %s, comment_text: %s\nfrom IP: %s\nat timestamp: %d",
+		listingID, userID, username, commentText, userIP, timestamp)
 
 	// Validate input data
 	{
@@ -119,6 +124,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 		return
 	}
 	responseComments := models.ToResponseSlice(comments)
+	//log.Println("Response comments for listing:", listingID, ":", responseComments)
 	c.JSON(http.StatusCreated, responseComments)
 }
 
@@ -135,6 +141,10 @@ func getComments(listingID string) ([]models.Comment, error) {
 	if !exists {
 		return nil, errors.New("Listing does not exist in TempDB") // Assuming ErrListingNotFound is defined in models package
 	}
+
+	slices.SortStableFunc(comments, func(a, b models.Comment) int {
+		return int(b.Timestamp) - int(a.Timestamp) // Sort by timestamp in descending order
+	})
 
 	return comments, nil
 }

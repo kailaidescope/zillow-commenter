@@ -2,7 +2,7 @@ const site = window.location.hostname;
 console.log("Site:", site);
 
 console.log("Content script loaded");
-alert("Content script loaded");
+//alert("Content script loaded");
 
 /* function InsertHtml() {
     alert("InsertHtml function called");

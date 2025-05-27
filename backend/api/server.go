@@ -9,6 +9,7 @@ import (
 	"zillow-commenter.com/m/api/models"
 	"zillow-commenter.com/m/token"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -39,6 +40,9 @@ func GetNewServer() (*Server, error) {
 	}
 
 	router := gin.Default()
+	// Set up CORS middleware to allow all origins, methods, and headers
+	router.Use(cors.Default())
+
 	server := &Server{
 		Router: router,
 		maker:  tokenMaker,
@@ -68,7 +72,7 @@ func GetNewServer() (*Server, error) {
 				comments.GET(":listing_id", server.GetListingComments)
 
 				// Creates a new comment for a specific zillow listing
-				comments.POST("", server.NotImplemented)
+				comments.POST("", server.PostListingComment)
 			}
 		}
 	}

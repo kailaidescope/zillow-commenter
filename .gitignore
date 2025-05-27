@@ -25,3 +25,6 @@ go.work
 
 # All environment files
 **.env
+
+# All vscode config files
+**.vscode/

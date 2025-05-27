@@ -145,6 +145,7 @@ body {
 
 #username-input {
     width: 120px;
+    padding: 2% 2%;
     margin-bottom: 6px;
     display: block;
     border: 1px solid var(--color-border);
@@ -155,8 +156,10 @@ body {
 }
 
 #comment-input {
-    width: 100%;
+    width: 96%;
+    padding: 2% 2%;
     min-height: 48px;
+    max-height: 150px;
     margin: 2% 0%;
     border: 1px solid var(--color-border);
     border-radius: 6px;
