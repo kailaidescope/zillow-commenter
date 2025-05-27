@@ -1,6 +1,10 @@
 // The models package contains the data structures used in the API.
 package models
 
+import (
+	"zillow-commenter.com/m/db/postgres/sqlc"
+)
+
 type Comment struct {
 	TargetListing string `json:"listing_id"`
 	CommentID     string `json:"comment_id"`
@@ -17,6 +21,19 @@ type ResponseComment struct {
 	Username      string `json:"username"`
 	CommentText   string `json:"comment_text"`
 	Timestamp     int64  `json:"timestamp"`
+}
+
+func CommentRowToComment(row sqlc.GetCommentsByListingIDRow) (Comment, error) {
+	// Convert a database row to a Comment struct.
+	return Comment{
+		TargetListing: row.ListingID,
+		CommentID:     row.CommentID,
+		UserIP:        row.UserIp,
+		UserID:        row.UserID,
+		Username:      row.Username,
+		CommentText:   row.CommentText,
+		Timestamp:     int64(row.Extract.Int64),
+	}, nil
 }
 
 // ToResponse converts a Comment to a ResponseComment.

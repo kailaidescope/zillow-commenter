@@ -3,7 +3,7 @@
 //   sqlc v1.29.0
 // source: query.sql
 
-package postgres
+package sqlc
 
 import (
 	"context"
@@ -18,7 +18,7 @@ ORDER BY date_created DESC
 `
 
 type GetCommentsByListingIDRow struct {
-	CommentID   int32
+	CommentID   pgtype.UUID
 	ListingID   string
 	UserIp      string
 	UserID      string
@@ -56,12 +56,13 @@ func (q *Queries) GetCommentsByListingID(ctx context.Context, listingID string) 
 }
 
 const postComment = `-- name: PostComment :one
-INSERT INTO comments (listing_id, user_ip, user_id, username, comment_text)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO comments (comment_id, listing_id, user_ip, user_id, username, comment_text)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING comment_id, listing_id, user_ip, user_id, username, comment_text, EXTRACT(EPOCH FROM date_created)
 `
 
 type PostCommentParams struct {
+	CommentID   pgtype.UUID
 	ListingID   string
 	UserIp      string
 	UserID      string
@@ -70,7 +71,7 @@ type PostCommentParams struct {
 }
 
 type PostCommentRow struct {
-	CommentID   int32
+	CommentID   pgtype.UUID
 	ListingID   string
 	UserIp      string
 	UserID      string
@@ -81,6 +82,7 @@ type PostCommentRow struct {
 
 func (q *Queries) PostComment(ctx context.Context, arg PostCommentParams) (PostCommentRow, error) {
 	row := q.db.QueryRow(ctx, postComment,
+		arg.CommentID,
 		arg.ListingID,
 		arg.UserIp,
 		arg.UserID,

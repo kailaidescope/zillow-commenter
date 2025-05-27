@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS comments (
-    comment_id SERIAL PRIMARY KEY,
+    comment_id UUID PRIMARY KEY,
     listing_id varchar(200) NOT NULL,
     user_ip varchar(45) NOT NULL,
     user_id varchar(50) NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS comments (
 );
 
 CREATE TABLE IF NOT EXISTS blacklist (
-    blacklist_id SERIAL PRIMARY KEY,
+    blacklist_id UUID PRIMARY KEY,
     cause varchar(100) NOT NULL,
     user_ip varchar(45) NOT NULL,
     user_id varchar(50),

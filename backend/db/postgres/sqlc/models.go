@@ -2,14 +2,14 @@
 // versions:
 //   sqlc v1.29.0
 
-package postgres
+package sqlc
 
 import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Blacklist struct {
-	BlacklistID int32
+	BlacklistID pgtype.UUID
 	Cause       string
 	UserIp      string
 	UserID      pgtype.Text
@@ -18,7 +18,7 @@ type Blacklist struct {
 }
 
 type Comment struct {
-	CommentID   int32
+	CommentID   pgtype.UUID
 	ListingID   string
 	UserIp      string
 	UserID      string

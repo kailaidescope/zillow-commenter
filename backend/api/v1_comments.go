@@ -1,11 +1,14 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
 	"slices"
 	"time"
+
+	"zillow-commenter.com/m/db/postgres/sqlc"
 
 	"github.com/gin-gonic/gin"
 	"zillow-commenter.com/m/api/models"
@@ -31,7 +34,7 @@ func (server *Server) GetListingComments(c *gin.Context) {
 	log.Println("GetListingComments called with listing_id:", listingID, "\nfrom IP:", userIP, "\nat timestamp:", timestamp)
 
 	// Check if the listing exists in the temporary comment database
-	comments, err := getComments(listingID)
+	comments, err := server.getComments(listingID)
 	if err != nil {
 		log.Println("Listing not found:", listingID)
 		// Create empty response if listing does not exist
@@ -107,7 +110,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	}
 
 	// Add the comment to the temporary comment database
-	if _, error := getComments(listingID); error != nil {
+	if _, error := server.getComments(listingID); error != nil {
 		models.TempCommentDB[listingID] = []models.Comment{}
 	}
 
@@ -117,7 +120,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	log.Println("New comment created for listing:", listingID, "by user:", username, "at timestamp:", timestamp)
 
 	// Return the new comments list as a JSON response
-	comments, err := getComments(listingID)
+	comments, err := server.getComments(listingID)
 	if err != nil {
 		log.Println("Error retrieving comments for listing:", listingID, "-", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -136,7 +139,25 @@ func (server *Server) PostListingComment(c *gin.Context) {
 // Output:
 //   - A slice of Comment structs containing the comments for the specified listing.
 //   - An error if the listing doesn't exist in the DB.
-func getComments(listingID string) ([]models.Comment, error) {
+func (server Server) getComments(listingID string) ([]models.Comment, error) {
+	// Acquire a Postgres connection from the pool
+	postgresPool, err := server.GetPostgresPool().Acquire(context.TODO())
+	if err != nil {
+		log.Println("Error acquiring Postgres connection:", err)
+		return nil, errors.Join(err, errors.New("failed to acquire postgres connection"))
+	}
+	defer postgresPool.Release()
+	postgresQueryClient := sqlc.New(postgresPool)
+
+	// Query the database for comments by listing ID
+	commentRows, err := postgresQueryClient.GetCommentsByListingID(context.TODO(), listingID)
+	if err != nil {
+		log.Println("Error retrieving comments from database for listing:", listingID, "-", err)
+		return nil, errors.Join(err, errors.New("failed to retrieve comments from database"))
+	}
+
+	//
+
 	comments, exists := models.TempCommentDB[listingID]
 	if !exists {
 		return nil, errors.New("Listing does not exist in TempDB") // Assuming ErrListingNotFound is defined in models package

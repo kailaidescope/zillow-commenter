@@ -1,4 +1,4 @@
-package postgres
+package sqlc
 
 //// Using [golang-migrate](https://github.com/golang-migrate/migrate)
 
