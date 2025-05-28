@@ -83,6 +83,15 @@ async function populateComments() {
 
 // Function to display comments in the list
 function displayComments(result, error=null) {
+    // Autofill username input with saved username
+    const usernameInput = document.getElementById('username-input');
+    if (usernameInput) {
+        const savedUsername = getSavedUsername();
+        if (savedUsername) {
+            usernameInput.value = savedUsername;
+        }
+    }
+
     // Get comments element from the DOM
     const commentsListElement = document.querySelector('.comments-list');
     if (!commentsListElement) return;
@@ -264,7 +273,6 @@ async function handleCommentSubmission(event) {
     });
 
     // Clear the form fields after submission
-    document.getElementById('username-input').value = '';
     document.getElementById('comment-input').value = '';
 }
 
@@ -342,7 +350,10 @@ function getCommentsByListingId(listingId, callbackFunc) {
         .catch(error => callbackFunc(null, error));
 }
 
+// Posts a new comment to the API
 async function postComment(commentObj, callbackFunc) {
+    // Save the username to localStorage
+    saveUsername(commentObj.username);
 
     // Collect comment data
     let listingId = await getListingID();
@@ -386,4 +397,18 @@ function getNewUserId(callbackFunc) {
         .then(response => response.text())
         .then(result => callbackFunc(result))
         .catch(error => callbackFunc(null, error));
+}
+
+// Saves the current username to localStorage
+function saveUsername(username) {
+    if (username && username.trim() !== '') {
+        window.localStorage.setItem('zillow_commenter_username', username.trim());
+    } else {
+        console.warn('Invalid username provided, not saving to localStorage.');
+    }
+}
+
+// Retrieves the saved username from localStorage
+function getSavedUsername() {
+    return window.localStorage.getItem('zillow_commenter_username') || '';
 }
