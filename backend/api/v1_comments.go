@@ -197,3 +197,25 @@ func (server Server) getComments(listingID string) ([]models.Comment, error) {
 
 	return comments, nil
 }
+
+// GenerateUserID generates a new user ID for the client.
+//
+// GET api/v1/user/user_id
+//
+// Output:
+//   - 200: A JSON object containing the generated user ID. ID is a V7 (Time) UUID.
+func (server *Server) GenerateUserID(c *gin.Context) {
+	// Generate a new UUID for the user using a timestamp-based version (v7) to ensure uniqueness
+	userID, err := uuid.NewV7()
+	if err != nil {
+		log.Println("Error generating new user UUID:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	// Log the generated user ID
+	log.Println("Generated new user ID:", userID)
+
+	// Return the user ID as a JSON response
+	c.JSON(http.StatusOK, gin.H{"user_id": userID.String()})
+}

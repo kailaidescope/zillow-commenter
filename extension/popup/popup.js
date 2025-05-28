@@ -1,4 +1,4 @@
-console.log("User ID: ", getUserId());
+console.log("User ID: ", getLocalUserId());
 
 // Sets a unique user ID in localStorage if it doesn't exist
 //
@@ -6,19 +6,37 @@ console.log("User ID: ", getUserId());
 function setUserId() {
     let userId = window.localStorage.getItem('zillow_commenter_user_id');
     if (!userId) {
-        userId = "user_" + Math.random().toString(36).substring(2, 15);
-        window.localStorage.setItem('zillow_commenter_user_id', userId);
+        getNewUserId((result, error=null) => {
+            if (error) {
+                // If there's an error retrieving the user ID, log it
+                console.error('Error retrieving user ID:', error);
+                //setUserId();
+                return;
+            }
+            if (result) {
+                // If a user ID is found, parse it and log it
+                const parsedResult = JSON.parse(result);
+                console.log('Retrieved user ID:', parsedResult.user_id);
+                window.localStorage.setItem('zillow_commenter_user_id', parsedResult.user_id);
+            } else {
+                // If no user ID is found, generate a new one
+                console.log('No user ID found, generating a new one.');
+                //setUserId();
+            }
+        });
+        /* userId = "user_" + Math.random().toString(36).substring(2, 15);
+        window.localStorage.setItem('zillow_commenter_user_id', userId); */
     }
 }
 
-//setUserId();
+setUserId();
 
 // Retrieves the user ID from localStorage
-function getUserId() {
+function getLocalUserId() {
     return window.localStorage.getItem('zillow_commenter_user_id');
 }
 
-//console.log(getUserId());
+console.log(getLocalUserId());
 
 
 // Tab switching logic
@@ -130,9 +148,23 @@ function displayComments(result, error=null) {
             return;
         }
     } else {
-        const li = document.createElement('li');
-        li.textContent = 'No comments found for this listing.';
-        commentsListElement.appendChild(li);
+        // If no comments are returned, check if we have a valid listing ID
+        getListingID().then(listingId => {
+            if (!listingId) {
+                // If no valid listing ID, disable the submit button and show an error message
+                console.error("No valid listing ID found in the current URL.");
+                const li = document.createElement('li');
+                li.textContent = 'Not on a commentable zillow listing page.';
+                commentsListElement.appendChild(li);
+                return;
+            } else {
+                // If we have a valid listing ID but no comments, display a message
+                const li = document.createElement('li');
+                li.textContent = 'No comments found for this listing.';
+                commentsListElement.appendChild(li);
+            }
+        });
+        
         return;
     }
 
@@ -260,7 +292,7 @@ async function handleCommentSubmission(event) {
 
     // Compile the comment object
     const commentObj = {
-        userId: getUserId(),
+        userId: getLocalUserId(),
         listingId: listingId,
         username: username,
         commentText: commentText,
@@ -284,7 +316,7 @@ async function handleCommentSubmission(event) {
 }
 
 // Gets the listing ID from the current URL
-// Zillow's URL format is "https://www.zillow.com/homedetails/listing-street-name/1234567890_zpid/", 
+// zillow's URL format is "https://www.zillow.com/homedetails/listing-street-name/1234567890_zpid/", 
 // from which you would extract "1234567890"
 async function getListingID() {
     let listingURL = '';
@@ -372,7 +404,7 @@ async function postComment(commentObj, callbackFunc) {
 
     var urlencoded = new URLSearchParams();
     urlencoded.append("listing_id", listingId);
-    urlencoded.append("user_id", getUserId());
+    urlencoded.append("user_id", getLocalUserId());
     urlencoded.append("username", commentObj.username);
     urlencoded.append("comment_text", commentObj.commentText);
 
@@ -385,6 +417,19 @@ async function postComment(commentObj, callbackFunc) {
 
     // Send POST request to the API
     fetch("http://localhost:3000/api/v1/comments", requestOptions)
+        .then(response => response.text())
+        .then(result => callbackFunc(result))
+        .catch(error => callbackFunc(null, error));
+}
+
+// getNewUserId retrieves a new V7 (Time-based) UUID from the API
+function getNewUserId(callbackFunc) {
+    var requestOptions = {
+        method: 'GET',
+        redirect: 'follow'
+    };
+
+    fetch("http://localhost:3000/api/v1/user/user_id", requestOptions)
         .then(response => response.text())
         .then(result => callbackFunc(result))
         .catch(error => callbackFunc(null, error));

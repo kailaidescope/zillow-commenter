@@ -74,6 +74,12 @@ func GetNewServer() (*Server, error) {
 				// Creates a new comment for a specific zillow listing
 				comments.POST("", server.PostListingComment)
 			}
+
+			// User routes
+			user := api_v1.Group("/user")
+			{
+				user.GET("/user_id", server.GenerateUserID)
+			}
 		}
 	}
 
