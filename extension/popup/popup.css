@@ -35,7 +35,7 @@
     --color-submit-btn-focus-shadow: rgba(0,106,255,0.08);
 }
 
-
+/* Popup container styles */
 
 .popup-container {
     width: 320px;
@@ -150,11 +150,18 @@ body {
 }
 
 .comments-list li {
-  margin-bottom: 8px;
-  padding: 8px 10px;
-  border-radius: 5px;
-  box-shadow: 0 1px 2px var(--color-shadow-light);
-  background: var(--comment-bg);
+    width: 90%;
+    word-break: break-word;
+    white-space: pre-wrap;
+    margin-bottom: 8px;
+    padding: 4% 7% 4% 5%;
+    border-radius: 5px;
+    box-shadow: 0 1px 2px var(--color-shadow-light);
+    background: var(--comment-bg);
+}
+
+.comment-date {
+    font-size: 0.85em; color: #555;
 }
 
 /* Comment submission section */

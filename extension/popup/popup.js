@@ -196,7 +196,8 @@ function displayComments(result, error=null) {
             dateStr = dateObj.toLocaleDateString();
             }
         }
-        li.innerHTML = `<strong>${comment.username}</strong> <span style="font-size: 0.85em; color: #555;">${dateStr}</span><br>${comment.comment_text}`;
+        li.innerHTML = `<strong>${comment.username}</strong> <span class="comment-date">${dateStr}</span><br>${comment.comment_text}`;
+        li.className = 'comment-item';
         commentsListElement.appendChild(li);
     });
 }

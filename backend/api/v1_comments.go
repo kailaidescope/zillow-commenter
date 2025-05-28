@@ -84,16 +84,19 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	// Validate input data
 	{
 		if listingID == "" || userID == "" || username == "" || commentText == "" {
+			log.Println("Invalid input data: listing_id, user_id, username, and comment_text are required")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input data"})
 			return
 		}
 
 		if len(commentText) > 300 {
+			log.Println("Comment text exceeds maximum length of 300 characters")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Comment text exceeds maximum length of 300 characters"})
 			return
 		}
 
 		if len(username) > 50 {
+			log.Println("Username exceeds maximum length of 50 characters")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Username exceeds maximum length of 50 characters"})
 			return
 		}
