@@ -138,12 +138,12 @@ function displayComments(result, error=null) {
 
     // Check if there are any comments
     if (comments !== null) {
-        console.log('Displaying comments: ', comments.length);
+        console.log('Displaying comments: ', comments);
     } else {
         console.log('Displaying comments: comments is null');
     }
 
-    if (!comments || !Array.isArray(comments)) {
+    if (!Array.isArray(comments)) {
         console.error('Invalid comments data:', comments);
     }
 
@@ -160,25 +160,43 @@ function displayComments(result, error=null) {
         const li = document.createElement('li');
         // Convert Unix second timestamp to readable date or time
         let dateStr = 'Unknown date';
-        if (comment.timestamp) {
-            // Multiply by 1000 to convert seconds to milliseconds
-            const dateObj = new Date(Number(comment.timestamp) * 1000);
+        console.log('Comment timestamp:', comment.timestamp);
+        console.log("of type", typeof comment.timestamp);
+        console.log('Comment:', comment.timestamp !== undefined && comment.timestamp !== null && !isNaN(Number(comment.timestamp)));
+        // Check if timestamp exists and is a valid int64 in seconds
+        if (comment.timestamp !== undefined && comment.timestamp !== null && !isNaN(Number(comment.timestamp))) {
+            console.log("Raw timestamp:", comment.timestamp);
+
+            // Convert int64 microseconds to milliseconds for JS Date
+            const dateObj = new Date(comment.timestamp / 1000);
+            console.log("Converted dateObj:", dateObj);
+
             const now = new Date();
+            console.log("Current date (now):", now);
+
             const diffMs = now - dateObj;
+            console.log("Difference in ms (now - dateObj):", diffMs);
+
             const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-            const isToday =
-                dateObj.getFullYear() === now.getFullYear() &&
-                dateObj.getMonth() === now.getMonth() &&
-                dateObj.getDate() === now.getDate();
+            console.log("Difference in days:", diffDays);
+
+            const isToday = dateObj.getFullYear() === now.getFullYear() &&
+                            dateObj.getMonth() === now.getMonth() &&
+                            dateObj.getDate() === now.getDate();
+            console.log("Is today:", isToday);
 
             if (isToday) {
                 dateStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                console.log("Formatted as time (today):", dateStr);
             } else if (diffDays === 1) {
                 dateStr = "1 day ago";
+                console.log("Formatted as 1 day ago");
             } else if (diffDays > 1 && diffDays < 7) {
                 dateStr = `${diffDays} days ago`;
+                console.log(`Formatted as ${diffDays} days ago`);
             } else if (diffDays >= 7) {
                 dateStr = dateObj.toLocaleDateString();
+                console.log("Formatted as date string:", dateStr);
             }
         }
         li.innerHTML = `<strong>${comment.username}</strong> <span style="font-size: 0.85em; color: #555;">${dateStr}</span><br>${comment.comment_text}`;
@@ -252,7 +270,13 @@ async function handleCommentSubmission(event) {
 
     // Display and post the comment
     //displaySubmittedComment(commentObj)
-    postComment(commentObj, displayComments);
+    postComment(commentObj, (result, error) => {
+        // Log the result or error
+        console.log('Comment posted:', result, error);
+
+        // Display the updated comments list after posting
+        getCommentsByListingId(listingId, displayComments)
+    });
 
     // Clear the form fields after submission
     document.getElementById('username-input').value = '';

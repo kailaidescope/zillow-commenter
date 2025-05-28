@@ -5,12 +5,13 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"slices"
 	"time"
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"zillow-commenter.com/m/api/models"
 )
 
@@ -36,10 +37,10 @@ func (server *Server) GetListingComments(c *gin.Context) {
 	// Check if the listing exists in the temporary comment database
 	comments, err := server.getComments(listingID)
 	if err != nil {
-		log.Println("Listing not found:", listingID)
-		// Create empty response if listing does not exist
-		responseComments := []models.ResponseComment{}
-		c.JSON(200, responseComments)
+		log.Println("Error getting comments from db", listingID)
+
+		// Tell the client that something went wrong
+		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
 
@@ -98,37 +99,63 @@ func (server *Server) PostListingComment(c *gin.Context) {
 		}
 	}
 
-	// Create a new comment
-	newComment := models.Comment{
-		TargetListing: listingID,
-		CommentID:     "cmt" + time.Now().Format("20060102150405"), // Unique comment ID based on timestamp
-		UserIP:        userIP,
-		UserID:        userID,
-		Username:      username,
-		CommentText:   commentText,
-		Timestamp:     timestamp,
-	}
-
-	// Add the comment to the temporary comment database
-	if _, error := server.getComments(listingID); error != nil {
-		models.TempCommentDB[listingID] = []models.Comment{}
-	}
-
-	models.TempCommentDB[listingID] = append(models.TempCommentDB[listingID], newComment)
-
-	// Log the new comment creation
-	log.Println("New comment created for listing:", listingID, "by user:", username, "at timestamp:", timestamp)
-
-	// Return the new comments list as a JSON response
-	comments, err := server.getComments(listingID)
+	// Generate a new UUID for the comment using a timestamp-based version (v7) to ensure uniqueness
+	commentID, err := uuid.NewV7()
 	if err != nil {
-		log.Println("Error retrieving comments for listing:", listingID, "-", err)
+		log.Println("Error generating new comment UUID:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
-	responseComments := models.ToResponseSlice(comments)
+
+	// Create a new comment
+	newComment := sqlc.PostCommentParams{
+		CommentID:   pgtype.UUID{Bytes: [16]byte(commentID), Valid: true}, // Unique comment ID based on timestamp
+		ListingID:   listingID,
+		UserIp:      userIP,
+		UserID:      userID,
+		Username:    username,
+		CommentText: commentText,
+	}
+
+	// Log the new comment creation
+	log.Println("New comment created for listing:", listingID, "by user:", username, "at timestamp:", timestamp)
+	log.Println("Comment details:", newComment)
+
+	// Acquire a Postgres connection from the pool
+	postgresPool, err := server.GetPostgresPool().Acquire(context.TODO())
+	if err != nil {
+		log.Println("Error acquiring Postgres connection:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+	defer postgresPool.Release()
+	postgresQueryClient := sqlc.New(postgresPool)
+
+	// Insert the new comment into the database
+	postCommentRow, err := postgresQueryClient.PostComment(context.TODO(), newComment)
+	if err != nil {
+		log.Println("Error inserting new comment into database for listing:", listingID, "-", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	/* // Convert the sqlc.PostCommentRow struct to a models.Comment struct
+	newCommentFromDB, err := models.GenericRowToComment(postCommentRow)
+	if err != nil {
+		log.Println("Error converting new comment row to models.Comment struct for listing:", listingID, "-", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	// Log the new comment from the database
+	log.Println("New comment from database for listing:", listingID, ":", newCommentFromDB)
+
 	//log.Println("Response comments for listing:", listingID, ":", responseComments)
-	c.JSON(http.StatusCreated, responseComments)
+	c.JSON(http.StatusCreated, newCommentFromDB) */
+
+	// Log the successful creation of the new comment
+	log.Println("New comment successfully created for listing:", listingID, ":", postCommentRow)
+	c.JSON(http.StatusCreated, postCommentRow)
 }
 
 // Helper function to get comments for a specific listing.
@@ -156,16 +183,17 @@ func (server Server) getComments(listingID string) ([]models.Comment, error) {
 		return nil, errors.Join(err, errors.New("failed to retrieve comments from database"))
 	}
 
-	//
-
-	comments, exists := models.TempCommentDB[listingID]
-	if !exists {
-		return nil, errors.New("Listing does not exist in TempDB") // Assuming ErrListingNotFound is defined in models package
+	// Convert the sqlc.GetCommentsByListingIDRow structs to models.Comment structs
+	comments, err := models.CommentRowsToComments(commentRows)
+	if err != nil {
+		log.Println("Error converting comment rows to models. Comment structs for listing:", listingID, "-", err)
+		return nil, errors.Join(err, errors.New("failed to convert comment rows to models.Comment structs"))
 	}
 
-	slices.SortStableFunc(comments, func(a, b models.Comment) int {
+	// Return the comments to the client
+	/* slices.SortStableFunc(comments, func(a, b models.Comment) int {
 		return int(b.Timestamp) - int(a.Timestamp) // Sort by timestamp in descending order
-	})
+	}) */
 
 	return comments, nil
 }
