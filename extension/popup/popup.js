@@ -1,4 +1,16 @@
+const API_ADDRESS = window.localStorage.getItem('zillow_commenter_api_address') || 'localhost';
+const API_PORT = "3000";
+const API_URL = `http://${API_ADDRESS}:${API_PORT}/api/v1`;
+
+
+// Log the current user ID from localStorage
 console.log("User ID: ", getLocalUserId());
+
+// Set the user ID in localStorage if it doesn't exist
+setUserId();
+
+// Populate comments when the popup is opened
+populateComments();
 
 // Sets a unique user ID in localStorage if it doesn't exist
 //
@@ -29,14 +41,10 @@ function setUserId() {
     }
 }
 
-setUserId();
-
 // Retrieves the user ID from localStorage
 function getLocalUserId() {
     return window.localStorage.getItem('zillow_commenter_user_id');
 }
-
-console.log(getLocalUserId());
 
 
 // Tab switching logic
@@ -51,49 +59,11 @@ document.querySelectorAll('.tab').forEach(tab => {
     });
 });
 
-// Sample comments array (just strings)
-const sampleComments = [
-    "Great property, loved the backyard!",
-    "Needs some renovation, but has potential.",
-    "Amazing location and spacious rooms.",
-    "Too expensive for the area.",
-    "Would love to schedule a tour."
-];
-
-// Sample comment objects
-const sampleCommentObjects = [
-    {
-        datePosted: "2024-06-01",
-        username: "user123",
-        commentText: "Great property, loved the backyard!"
-    },
-    {
-        datePosted: "2024-06-02",
-        username: "houseHunter",
-        commentText: "Needs some renovation, but has potential."
-    },
-    {
-        datePosted: "2024-06-03",
-        username: "realtyFan",
-        commentText: "Amazing location and spacious rooms."
-    },
-    {
-        datePosted: "2024-06-04",
-        username: "skeptic42",
-        commentText: "Too expensive for the area."
-    },
-    {
-        datePosted: "2024-06-05",
-        username: "tourSeeker",
-        commentText: "Would love to schedule a tour."
-    }
-];
-
 // Function to populate comments list in the DOM
 async function populateComments() {
     // Get comments element from the DOM
     const commentsListElement = document.querySelector('.comments-list');
-    console.log('Populating comments.');
+    //console.log('Populating comments.');
     if (!commentsListElement) return;
 
     // Clear existing comments
@@ -154,7 +124,7 @@ function displayComments(result, error=null) {
                 // If no valid listing ID, disable the submit button and show an error message
                 console.error("No valid listing ID found in the current URL.");
                 const li = document.createElement('li');
-                li.textContent = 'Not on a commentable zillow listing page.';
+                li.textContent = 'Not on an eligible zillow listing page.';
                 commentsListElement.appendChild(li);
                 return;
             } else {
@@ -170,9 +140,9 @@ function displayComments(result, error=null) {
 
     // Check if there are any comments
     if (comments !== null) {
-        console.log('Displaying comments: ', comments);
+        console.log(`Displaying ${comments.length} comments` );
     } else {
-        console.log('Displaying comments: comments is null');
+        console.log('Displaying comment, comments is null');
     }
 
     if (!Array.isArray(comments)) {
@@ -192,52 +162,35 @@ function displayComments(result, error=null) {
         const li = document.createElement('li');
         // Convert Unix second timestamp to readable date or time
         let dateStr = 'Unknown date';
-        console.log('Comment timestamp:', comment.timestamp);
-        console.log("of type", typeof comment.timestamp);
-        console.log('Comment:', comment.timestamp !== undefined && comment.timestamp !== null && !isNaN(Number(comment.timestamp)));
         // Check if timestamp exists and is a valid int64 in seconds
         if (comment.timestamp !== undefined && comment.timestamp !== null && !isNaN(Number(comment.timestamp))) {
-            console.log("Raw timestamp:", comment.timestamp);
-
             // Convert int64 microseconds to milliseconds for JS Date
             const dateObj = new Date(comment.timestamp / 1000);
-            console.log("Converted dateObj:", dateObj);
 
             const now = new Date();
-            console.log("Current date (now):", now);
 
             const diffMs = now - dateObj;
-            console.log("Difference in ms (now - dateObj):", diffMs);
 
             const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-            console.log("Difference in days:", diffDays);
 
             const isToday = dateObj.getFullYear() === now.getFullYear() &&
-                            dateObj.getMonth() === now.getMonth() &&
-                            dateObj.getDate() === now.getDate();
-            console.log("Is today:", isToday);
+                    dateObj.getMonth() === now.getMonth() &&
+                    dateObj.getDate() === now.getDate();
 
             if (isToday) {
-                dateStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                console.log("Formatted as time (today):", dateStr);
+            dateStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             } else if (diffDays === 1) {
-                dateStr = "1 day ago";
-                console.log("Formatted as 1 day ago");
+            dateStr = "1 day ago";
             } else if (diffDays > 1 && diffDays < 7) {
-                dateStr = `${diffDays} days ago`;
-                console.log(`Formatted as ${diffDays} days ago`);
+            dateStr = `${diffDays} days ago`;
             } else if (diffDays >= 7) {
-                dateStr = dateObj.toLocaleDateString();
-                console.log("Formatted as date string:", dateStr);
+            dateStr = dateObj.toLocaleDateString();
             }
         }
         li.innerHTML = `<strong>${comment.username}</strong> <span style="font-size: 0.85em; color: #555;">${dateStr}</span><br>${comment.comment_text}`;
         commentsListElement.appendChild(li);
     });
 }
-
-// Call this function to populate comments when the popup is opened
-populateComments();
 
 // Function to show the current URL in the comments tab
 function displayURL() {
@@ -304,7 +257,7 @@ async function handleCommentSubmission(event) {
     //displaySubmittedComment(commentObj)
     postComment(commentObj, (result, error) => {
         // Log the result or error
-        console.log('Comment posted:', result, error);
+        console.log('Comment posted'/*, result, error*/);
 
         // Display the updated comments list after posting
         getCommentsByListingId(listingId, displayComments)
@@ -383,7 +336,7 @@ function getCommentsByListingId(listingId, callbackFunc) {
     redirect: 'follow'
     };
 
-    fetch("http://localhost:3000/api/v1/comments/"+listingId, requestOptions)
+    fetch(`${API_URL}/comments/${listingId}`, requestOptions)
         .then(response => response.text())
         .then(result => callbackFunc(result))
         .catch(error => callbackFunc(null, error));
@@ -416,7 +369,7 @@ async function postComment(commentObj, callbackFunc) {
     };
 
     // Send POST request to the API
-    fetch("http://localhost:3000/api/v1/comments", requestOptions)
+    fetch(`${API_URL}/comments`, requestOptions)
         .then(response => response.text())
         .then(result => callbackFunc(result))
         .catch(error => callbackFunc(null, error));
@@ -429,7 +382,7 @@ function getNewUserId(callbackFunc) {
         redirect: 'follow'
     };
 
-    fetch("http://localhost:3000/api/v1/user/user_id", requestOptions)
+    fetch(`${API_URL}/user/user_id`, requestOptions)
         .then(response => response.text())
         .then(result => callbackFunc(result))
         .catch(error => callbackFunc(null, error));
