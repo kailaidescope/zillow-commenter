@@ -19,5 +19,9 @@ func main() {
 		log.Fatal("Could not start the server")
 	}
 
-	server.Router.Run(":3000")
+	// Start server listening on port 3000 for HTTPS connections
+	server.Router.RunTLS(":3000", "./ssl/public_certificate.pem", "./ssl/private_key.pem")
+	if err != nil {
+		log.Fatal("Could not start the server")
+	}
 }
