@@ -1,6 +1,6 @@
 const API_ADDRESS = window.localStorage.getItem('zillow_commenter_api_address') || 'localhost';
 const API_PORT = "3000";
-const API_URL = `http://${API_ADDRESS}:${API_PORT}/api/v1`;
+const API_URL = `https://${API_ADDRESS}:${API_PORT}/api/v1`;
 
 
 // Log the current user ID from localStorage
