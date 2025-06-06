@@ -12,14 +12,18 @@ import (
 	"zillow-commenter.com/m/api"
 )
 
-func main() {
+var server *api.Server
 
+func init() {
 	// Server //
-	server, err := api.GetNewServer()
+	var err error
+	server, err = api.GetNewServer()
 	if err != nil {
 		log.Fatal("Could not start the server")
 	}
+}
 
+func main() {
 	/* // Start server listening on port 3000 for HTTPS connections
 	server.Router.RunTLS(":3000", "./ssl/public_certificate.pem", "./ssl/private_key.pem")
 	if err != nil {
@@ -27,5 +31,8 @@ func main() {
 	} */
 
 	// Proxy the server to AWS Lambda
+	if server.LambdaAdapter == nil {
+		log.Fatal("LambdaAdapter is not initialized")
+	}
 	lambda.Start(server.LambdaAdapter.ProxyWithContext)
 }
