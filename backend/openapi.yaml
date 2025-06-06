@@ -76,6 +76,21 @@ paths:
           description: Invalid input data
         '500':
           description: Internal server error
+  api/v1/user/user_id:
+    get:
+      summary: Generate a new user ID
+      responses:
+        '200':
+          description: Generated user ID
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+        '500':
+          description: Internal server error
 
 components:
   schemas:
