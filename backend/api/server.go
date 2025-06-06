@@ -9,6 +9,7 @@ import (
 	"zillow-commenter.com/m/api/models"
 	"zillow-commenter.com/m/token"
 
+	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,9 +17,10 @@ import (
 )
 
 type Server struct {
-	Router *gin.Engine
-	maker  *token.PasetoMaker
-	pool   *pgxpool.Pool
+	Router        *gin.Engine
+	LambdaAdapter *ginadapter.GinLambda
+	maker         *token.PasetoMaker
+	pool          *pgxpool.Pool
 }
 
 func (server *Server) GetPostgresPool() *pgxpool.Pool {
@@ -88,6 +90,8 @@ func GetNewServer() (*Server, error) {
 	// =============================================================================================================== //
 
 	models.InitTempCommentDB() // Initialize the temporary comment database
+
+	server.LambdaAdapter = ginadapter.New(router)
 
 	// load router
 	// load token maker
