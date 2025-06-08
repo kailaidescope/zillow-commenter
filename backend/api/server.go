@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"zillow-commenter.com/m/api/models"
+	"zillow-commenter.com/m/db/postgres/sqlc"
 	"zillow-commenter.com/m/token"
 
 	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
@@ -32,24 +33,41 @@ func (server *Server) GetPostgresPool() *pgxpool.Pool {
 func GetNewServer() (*Server, error) {
 	//load env vars
 	godotenv.Load()
+
+	// TOKEN MAKER
+
 	key := os.Getenv("TOKEN_KEY")
 	tokenMaker, err := token.NewPasetoMaker(key)
 	if err != nil {
 		return nil, err
 	}
 
+	// POSTGRES CONNECTION
+
 	pool, err := pgxpool.New(context.Background(), os.Getenv("CONNECTION_STRING"))
 	if err != nil {
 		return nil, err
 	}
 
+	// ROUTER
+
+	// Create a new Gin router
 	router := gin.Default()
 	// Set up CORS middleware to allow all origins, methods, and headers
 	router.Use(cors.Default())
 
+	// VALIDATOR
+
+	// Set up the validator with required struct validation enabled
+	validate := validator.New(validator.WithRequiredStructEnabled())
+
+	// Register custom validation for structs
+	validate.RegisterStructValidation(sqlc.PostCommentParamsValidation, sqlc.PostCommentParams{})
+
+	// Collect server singleton variables
 	server := &Server{
 		Router:    router,
-		Validator: validator.New(validator.WithRequiredStructEnabled()),
+		Validator: validate,
 		maker:     tokenMaker,
 		pool:      pool,
 	}
@@ -58,7 +76,7 @@ func GetNewServer() (*Server, error) {
 	//                                             Mount routes below                                                  //
 	// =============================================================================================================== //
 
-	// Top-leve api routes
+	// Top-level api routes
 	api := router.Group("/api")
 	{
 		// Gives information about the API in general, particularly about how to switch between versions

@@ -20,8 +20,7 @@ package sqlc
 // ===================================================================================================================== //
 
 import (
-	"errors"
-	"fmt"
+	"log"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -53,7 +52,7 @@ type Address struct {
 //
 // Input:
 //   - sl: a validator object that allows this function to be registed as a custom struct validator.
-func PostCommentParamsValidation(sl validator.StructLevel) error {
+func PostCommentParamsValidation(sl validator.StructLevel) {
 	// Fields to validate:
 	//
 	// CommentID   pgtype.UUID
@@ -65,6 +64,8 @@ func PostCommentParamsValidation(sl validator.StructLevel) error {
 
 	postCommentParams := sl.Current().Interface().(PostCommentParams)
 
+	// COMMENT ID
+
 	// Convert the comment ID from pgtype.UUID to uuid.UUID.
 	commentUUID, err := uuid.FromBytes(postCommentParams.CommentID.Bytes[:])
 	if err != nil {
@@ -72,27 +73,55 @@ func PostCommentParamsValidation(sl validator.StructLevel) error {
 		sl.ReportError(postCommentParams.CommentID, "CommentID", "CommentID", "uuid", "")
 	}
 
+	log.Println("Validating CommentID:", commentUUID.String())
+
 	// TODO: check that this test ensures UUID is not empty and not invalid
 	// Example uuid : f81d4fae-7dec-11d0-a765-00a0c91e6bf6
-	if uuid.Validate(commentUUID.String()) != nil {
-		sl.ReportError(postCommentParams.CommentID, "CommentID", "CommentID", "required,uuid", "")
+	commentIdValidation := "required,uuid"
+	err = sl.Validator().Var(commentUUID, commentIdValidation)
+	if err != nil || uuid.Validate(commentUUID.String()) != nil {
+		sl.ReportError(postCommentParams.CommentID, "CommentID", "CommentID", commentIdValidation, "")
 	}
 
-	listingIdValidation := "required,numeric"
+	// LISTING ID
+
+	listingIdValidation := "required,number,excludes=.,min=1,max=20"
 	err = sl.Validator().Var(postCommentParams.ListingID, listingIdValidation)
 	if err != nil {
 		sl.ReportError(postCommentParams, "ListingID", "ListingID", listingIdValidation, "")
 	}
 
-	errs := sl.Validator().Var(postCommentParams.CommentID, "required,email")
+	// USER IP
 
-	if errs != nil {
-		fmt.Println(errs) // output: Key: "" Error:Field validation for "" failed on the "email" tag
-		return
+	userIpValidation := "required,ip"
+	err = sl.Validator().Var(postCommentParams.UserIp, userIpValidation)
+	if err != nil {
+		sl.ReportError(postCommentParams, "UserIp", "UserIp", userIpValidation, "")
 	}
 
-	// email ok, move on
-	return errors.New("function not yet implmented")
+	// USER ID
+
+	userIdValidation := "required,uuid"
+	err = sl.Validator().Var(postCommentParams.UserID, userIdValidation)
+	if err != nil || uuid.Validate(postCommentParams.UserID) != nil {
+		sl.ReportError(postCommentParams.UserID, "UserID", "UserID", userIdValidation, "")
+	}
+
+	// USERNAME
+
+	usernameValidation := "required,alphanum,min=3,max=25"
+	err = sl.Validator().Var(postCommentParams.Username, usernameValidation)
+	if err != nil {
+		sl.ReportError(postCommentParams.Username, "Username", "Username", usernameValidation, "")
+	}
+
+	// COMMENT TEXT
+
+	commentTextValidation := "required,min=1,max=300"
+	err = sl.Validator().Var(postCommentParams.CommentText, commentTextValidation)
+	if err != nil {
+		sl.ReportError(postCommentParams.CommentText, "CommentText", "CommentText", commentTextValidation, "")
+	}
 }
 
 // ================================================================================================================== //
