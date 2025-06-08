@@ -20,7 +20,9 @@ package sqlc
 // ===================================================================================================================== //
 
 import (
+	"errors"
 	"log"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -79,7 +81,7 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 	// Example uuid : f81d4fae-7dec-11d0-a765-00a0c91e6bf6
 	commentIdValidation := "required,uuid"
 	err = sl.Validator().Var(commentUUID, commentIdValidation)
-	if err != nil || uuid.Validate(commentUUID.String()) != nil {
+	if err != nil || uuid.Validate(commentUUID.String()) != nil || customUUIDValidator(commentUUID) != nil {
 		sl.ReportError(postCommentParams.CommentID, "CommentID", "CommentID", commentIdValidation, "")
 	}
 
@@ -122,6 +124,51 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 	if err != nil {
 		sl.ReportError(postCommentParams.CommentText, "CommentText", "CommentText", commentTextValidation, "")
 	}
+}
+
+// customUUIDValidator runs extra checks to ensure that a V7 UUID is valid.
+// It primarily checks to ensure that the time component of the UUID is logical,
+// and that the version is correct.
+//
+// Input:
+//   - uuid: the UUID to validate.
+//
+// Output:
+//   - error: returns nil if the UUID is valid, or an error if it is not.
+func customUUIDValidator(uuid uuid.UUID) error {
+	// TIME COMPONENT
+
+	// Check the time component of the UUID.
+	uuidByteTimeComponent := uuid[0:6]
+
+	// Convert 6 bytes to uint64 by shifting
+	var intTimestamp uint64
+	for i := 0; i < 6; i++ {
+		intTimestamp = (intTimestamp << 8) | uint64(uuidByteTimeComponent[i])
+	}
+
+	convertedTimestamp := time.UnixMilli(int64(intTimestamp))
+
+	// Define the past and future reference times for validation.
+
+	// (Sun Jun 08 2025 20:10:37 GMT+0000)
+	pastReferenceTime := time.Unix(1749413437, 0)
+
+	// 100 hours in the future
+	futureReferenceTime := time.Now().Add(100 * time.Hour)
+
+	// Check uuid's timestamp against reference timestamps
+	if convertedTimestamp.Before(pastReferenceTime) || convertedTimestamp.After(futureReferenceTime) {
+		return errors.New("UUID time component is not within the valid range")
+	}
+
+	// VERSION CHECK
+
+	if uuid.Version() != 7 {
+		return errors.New("UUID version is not 7")
+	}
+
+	return nil
 }
 
 // ================================================================================================================== //

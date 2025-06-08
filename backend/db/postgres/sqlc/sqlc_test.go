@@ -104,7 +104,30 @@ func TestPostCommentParamsValidation_CommentID_Required(t *testing.T) {
 	}
 }
 
-// FAILED
+func TestPostCommentParamsValidation_CommentID_AlmostValidUUID(t *testing.T) {
+	teardown, validate := SetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams()
+	// Set invalid UUID bytes (not a valid UUID)
+	tempId := params.CommentID.String()
+	// Change the 15th character (index 14) from '7' to a different digit, changing the version code
+	if len(tempId) > 14 && tempId[14] == '7' {
+		tempId = tempId[:14] + "3" + tempId[15:] // Change '7' to '3' for testing
+	}
+	uuid, err := uuid.Parse(tempId)
+	if err != nil {
+		t.Error("Failed to parse modified CommentID UUID:", err)
+		return
+	}
+	params.CommentID = pgtype.UUID{Bytes: [16]byte(uuid), Valid: true}
+
+	err = validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for invalid CommentID UUID, got nil")
+	}
+}
+
 func TestPostCommentParamsValidation_CommentID_InvalidUUID(t *testing.T) {
 	teardown, validate := SetupAndTeardown(t)
 	defer teardown(t)
