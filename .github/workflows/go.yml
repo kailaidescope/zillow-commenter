@@ -6,9 +6,9 @@ name: Backend
 on:
   push:
     branches:
-      ["master", "dev"]
+      ["main", "dev"]
   pull_request:
-    branches: ["master", "dev"]
+    branches: ["main", "dev"]
 
 jobs:
   audit:
@@ -23,7 +23,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd back_end
+          cd backend
           go mod tidy
           echo "$(<go.mod)"
 
@@ -32,5 +32,5 @@ jobs:
           CONNECTION_STRING: ${{ secrets.POSTGRES_CONNECTION_STRING }}
           TOKEN_KEY: ${{ secrets.TOKEN_KEY }}
         run: |
-          cd back_end
+          cd backend
           go test -v .db/postgres/sqlc
