@@ -12,6 +12,7 @@ import (
 	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
@@ -19,6 +20,7 @@ import (
 type Server struct {
 	Router        *gin.Engine
 	LambdaAdapter *ginadapter.GinLambda
+	Validator     *validator.Validate
 	maker         *token.PasetoMaker
 	pool          *pgxpool.Pool
 }
@@ -46,9 +48,10 @@ func GetNewServer() (*Server, error) {
 	router.Use(cors.Default())
 
 	server := &Server{
-		Router: router,
-		maker:  tokenMaker,
-		pool:   pool,
+		Router:    router,
+		Validator: validator.New(validator.WithRequiredStructEnabled()),
+		maker:     tokenMaker,
+		pool:      pool,
 	}
 
 	// =============================================================================================================== //

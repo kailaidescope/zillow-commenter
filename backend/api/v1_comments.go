@@ -125,14 +125,14 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	log.Println("Comment details:", newComment)
 
 	// Acquire a Postgres connection from the pool
-	postgresPool, err := server.GetPostgresPool().Acquire(context.TODO())
+	postgresConnection, err := server.GetPostgresPool().Acquire(context.TODO())
 	if err != nil {
 		log.Println("Error acquiring Postgres connection:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
-	defer postgresPool.Release()
-	postgresQueryClient := sqlc.New(postgresPool)
+	defer postgresConnection.Release()
+	postgresQueryClient := sqlc.New(postgresConnection)
 
 	// Insert the new comment into the database
 	postCommentRow, err := postgresQueryClient.PostComment(context.TODO(), newComment)
@@ -171,13 +171,13 @@ func (server *Server) PostListingComment(c *gin.Context) {
 //   - An error if the listing doesn't exist in the DB.
 func (server Server) getComments(listingID string) ([]models.Comment, error) {
 	// Acquire a Postgres connection from the pool
-	postgresPool, err := server.GetPostgresPool().Acquire(context.TODO())
+	postgresConnection, err := server.GetPostgresPool().Acquire(context.TODO())
 	if err != nil {
 		log.Println("Error acquiring Postgres connection:", err)
 		return nil, errors.Join(err, errors.New("failed to acquire postgres connection"))
 	}
-	defer postgresPool.Release()
-	postgresQueryClient := sqlc.New(postgresPool)
+	defer postgresConnection.Release()
+	postgresQueryClient := sqlc.New(postgresConnection)
 
 	// Query the database for comments by listing ID
 	commentRows, err := postgresQueryClient.GetCommentsByListingID(context.TODO(), listingID)
