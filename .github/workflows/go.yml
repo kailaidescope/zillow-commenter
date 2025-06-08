@@ -33,4 +33,4 @@ jobs:
           TOKEN_KEY: ${{ secrets.TOKEN_KEY }}
         run: |
           cd backend
-          go test -v .db/postgres/sqlc
+          go test -v ./db/postgres/sqlc
