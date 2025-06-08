@@ -334,6 +334,38 @@ func TestPostCommentParamsValidation_CommentText_Required(t *testing.T) {
 	}
 }
 
+func TestPostCommentParamsValidation_CommentText_NonPrintableASCII(t *testing.T) {
+	teardown, validate := SetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams()
+	// Insert a non-printable ASCII character (e.g., ASCII 7 - bell)
+	params.CommentText = "This is a valid comment.\a"
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for CommentText containing non-printable ASCII, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_CommentText_OnlyPrintableASCII(t *testing.T) {
+	teardown, validate := SetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams()
+	// All printable ASCII characters from 32 (space) to 126 (~)
+	printable := ""
+	for i := 32; i <= 126; i++ {
+		printable += string(rune(i))
+	}
+	params.CommentText = printable
+
+	err := validate.Struct(params)
+	if err != nil {
+		t.Errorf("Expected valid CommentText with only printable ASCII, got error: %v", err)
+	}
+}
+
 func TestPostCommentParamsValidation_CommentText_MinLength(t *testing.T) {
 	teardown, validate := SetupAndTeardown(t)
 	defer teardown(t)

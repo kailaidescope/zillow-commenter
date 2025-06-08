@@ -119,7 +119,7 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 
 	// COMMENT TEXT
 
-	commentTextValidation := "required,min=1,max=300"
+	commentTextValidation := "required,printascii,min=1,max=300"
 	err = sl.Validator().Var(postCommentParams.CommentText, commentTextValidation)
 	if err != nil {
 		sl.ReportError(postCommentParams.CommentText, "CommentText", "CommentText", commentTextValidation, "")
