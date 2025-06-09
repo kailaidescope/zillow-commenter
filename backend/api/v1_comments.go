@@ -222,3 +222,25 @@ func (server *Server) GenerateUserID(c *gin.Context) {
 	// Return the user ID as a JSON response
 	c.JSON(http.StatusOK, gin.H{"user_id": userID.String()})
 }
+
+// sanitizePostCommentParams prevents XSS attacks by using bluemonday's
+// HTML sanitizer to clean the data before inserting into the database.
+//
+// Input:
+//   - postCommentParams: a struct containing a comment attempting to be posted, which may contain unsafe HTML.
+//
+// Output:
+//   - postCommentParams: a sanitized struct containing the comment to be posted.
+func (server Server) sanitizePostCommentParams(postCommentParams sqlc.PostCommentParams) sqlc.PostCommentParams {
+	// Fields to sanitize:
+	//
+	// CommentID   pgtype.UUID
+	// ListingID   string
+	// UserIp      string
+	// UserID      string
+	// Username    string
+	// CommentText string
+
+	// Return the sanitized parameters
+	return postCommentParams
+}

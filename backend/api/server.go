@@ -16,14 +16,16 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/microcosm-cc/bluemonday"
 )
 
 type Server struct {
-	Router        *gin.Engine
-	LambdaAdapter *ginadapter.GinLambda
-	Validator     *validator.Validate
-	maker         *token.PasetoMaker
-	pool          *pgxpool.Pool
+	Router            *gin.Engine
+	LambdaAdapter     *ginadapter.GinLambda
+	Validator         *validator.Validate
+	SantizationPolicy *bluemonday.Policy
+	maker             *token.PasetoMaker
+	pool              *pgxpool.Pool
 }
 
 func (server *Server) GetPostgresPool() *pgxpool.Pool {
@@ -64,12 +66,20 @@ func GetNewServer() (*Server, error) {
 	// Register custom validation for structs
 	validate.RegisterStructValidation(sqlc.PostCommentParamsValidation, sqlc.PostCommentParams{})
 
+	// SANITIZER
+
+	// Initialize bluemonday sanitization policy
+	//
+	// We use the strict policy because there should be no reason to include *ANY* HTML in our comments
+	sanitizationPolicy := bluemonday.StrictPolicy()
+
 	// Collect server singleton variables
 	server := &Server{
-		Router:    router,
-		Validator: validate,
-		maker:     tokenMaker,
-		pool:      pool,
+		Router:            router,
+		Validator:         validate,
+		SantizationPolicy: sanitizationPolicy,
+		maker:             tokenMaker,
+		pool:              pool,
 	}
 
 	// =============================================================================================================== //

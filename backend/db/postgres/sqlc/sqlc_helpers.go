@@ -104,8 +104,13 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 	// USER ID
 
 	userIdValidation := "required,uuid"
+	userUUID, err := uuid.Parse(postCommentParams.UserID)
+	if err != nil {
+		// If the conversion fails, return an error indicating the format is invalid.
+		sl.ReportError(postCommentParams.UserID, "UserID", "UserID", "uuid", "")
+	}
 	err = sl.Validator().Var(postCommentParams.UserID, userIdValidation)
-	if err != nil || uuid.Validate(postCommentParams.UserID) != nil {
+	if err != nil || uuid.Validate(postCommentParams.UserID) != nil || customUUIDValidator(userUUID) != nil {
 		sl.ReportError(postCommentParams.UserID, "UserID", "UserID", userIdValidation, "")
 	}
 
