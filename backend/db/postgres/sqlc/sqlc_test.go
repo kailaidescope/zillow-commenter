@@ -1,9 +1,12 @@
 package sqlc
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"log"
 	"testing"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -379,18 +382,111 @@ func TestPostCommentParamsValidation_UserID_Version6UUID(t *testing.T) {
 }
 
 // Helper to create a V7 UUID with a custom timestamp (in seconds since epoch)
-func newV7UUIDWithUnixSeconds(ts int64) (*uuid.UUID, error) {
-	return nil, errors.New("newV7UUIDWithUnixSeconds is not implemented in this test file, please implement it if needed")
+//
+// Input:
+//   - timestamp: a time object representing the time to set the UUID's time segment to
+//
+// Ouput:
+//   - *uuid.UUID: a pointer to a uuid with the specified time segment, nil if error occurred
+//   - error: non-nil when an error occurs during processing
+func newV7UUIDWithUnixSeconds(timestamp time.Time) (*uuid.UUID, error) {
+	// Create new V7 UUID
+	tempUUID, err := uuid.NewV7()
+	if err != nil {
+		return nil, errors.Join(errors.New("failed to create temporary uuid for time setting"), err)
+	}
+	//log.Println("temp bytes = ", tempUUID[0:6], ", uuid = ", tempUUID)
+
+	// Create a buffer to read the int64 into for later copying
+	shiftBuffer := bytes.NewBuffer([]byte{})
+	shiftBuffer.Reset()
+	err = binary.Write(shiftBuffer, binary.BigEndian, timestamp.UnixMilli())
+	if err != nil {
+		return nil, errors.Join(errors.New("failed to write timestamp to temporary buffer"), err)
+	}
+	//log.Println("Buffer = ", shiftBuffer.Bytes(), ", temp bytes = ", tempUUID[0:6], ", uuid = ", tempUUID)
+
+	//log.Println("temp buffer: ", tempBuffer)
+
+	// Replace the time segement of the uuid (first 6 bytes) with the fabricated time segment
+	tempUUID, err = uuid.FromBytes(bytes.Replace(tempUUID[0:16], tempUUID[0:6], shiftBuffer.Bytes()[2:8], 1))
+	if err != nil {
+		return nil, errors.Join(errors.New("failed to replace timestamp in original uuid"), err)
+	}
+
+	//log.Println("Buffer[2:8] = ", shiftBuffer.Bytes()[2:8], ", temp bytes = ", tempUUID[0:6], ", uuid = ", tempUUID)
+
+	return &tempUUID, nil
+}
+
+// TestUUIDTimeGen_10Days ensures that the newV7UUIDWithUnixSeconds() function correctly fabricates
+// uuids with specified timestamps.
+func TestUUIDTimeGen_10Days(t *testing.T) {
+	// Generate a timestamp 10 days ago
+	timestamp := (time.Now().Add(time.Hour * 24 * -10))
+
+	// Generate a new UUID with that timestamp
+	fabricatedUUID, err := newV7UUIDWithUnixSeconds(timestamp)
+	if err != nil {
+		t.Fatal("Failed to generate UUID with specified time", err)
+	}
+
+	// Write timestamp into a buffer for comparison
+	timeBuffer := bytes.NewBuffer([]byte{})
+	timeBuffer.Reset()
+	err = binary.Write(timeBuffer, binary.BigEndian, timestamp.UnixMilli())
+	if err != nil {
+		t.Fatal("Failed to parse time to bytes to check against uuid")
+	}
+
+	//log.Println(timeBuffer.Bytes()[2:8], fabricatedUUID[0:6])
+
+	// Check the timestampe bytes against the UUID's bytes
+	if bytes.Compare(timeBuffer.Bytes()[2:8], fabricatedUUID[0:6]) != 0 {
+		t.Fatal("Fabricated UUID timestamp does not match intended timestamp")
+	}
+
+	log.Println("Generated 10-day-old UUID: ", fabricatedUUID)
+}
+
+// TestUUIDTimeGen_100Days ensures that the newV7UUIDWithUnixSeconds() function correctly fabricates
+// uuids with specified timestamps.
+func TestUUIDTimeGen_100Days(t *testing.T) {
+	// Generate a timestamp 10 days ago
+	timestamp := (time.Now().Add(time.Hour * 24 * -100))
+
+	// Generate a new UUID with that timestamp
+	fabricatedUUID, err := newV7UUIDWithUnixSeconds(timestamp)
+	if err != nil {
+		t.Fatal("Failed to generate UUID with specified time", err)
+	}
+
+	// Write timestamp into a buffer for comparison
+	timeBuffer := bytes.NewBuffer([]byte{})
+	timeBuffer.Reset()
+	err = binary.Write(timeBuffer, binary.BigEndian, timestamp.UnixMilli())
+	if err != nil {
+		t.Fatal("Failed to parse time to bytes to check against uuid")
+	}
+
+	//log.Println(timeBuffer.Bytes()[2:8], fabricatedUUID[0:6])
+
+	// Check the timestampe bytes against the UUID's bytes
+	if bytes.Compare(timeBuffer.Bytes()[2:8], fabricatedUUID[0:6]) != 0 {
+		t.Fatal("Fabricated UUID timestamp does not match intended timestamp")
+	}
+
+	log.Println("Generated 100-day-old UUID: ", fabricatedUUID)
 }
 
 // Tests for illogical UUID dates
 
-/* func TestPostCommentParamsValidation_UserID_UUIDTooFarInPast(t *testing.T) {
+func TestPostCommentParamsValidation_UserID_UUIDTooFarInPast(t *testing.T) {
 	teardown, validate := SetupAndTeardown(t)
 	defer teardown(t)
 
 	// Far past: 1970-01-01
-	pastTime := int64(1000)
+	pastTime := time.Unix(int64(1000), 0)
 	uuidPast, err := newV7UUIDWithUnixSeconds(pastTime)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for UserID (far past):", err)
@@ -409,7 +505,7 @@ func TestPostCommentParamsValidation_UserID_UUIDSlightlyInPast(t *testing.T) {
 	defer teardown(t)
 
 	// Slightly before May 27, 2025 (reference: 1748389238)
-	pastTime := int64(1748389238 - 10000)
+	pastTime := time.Unix(int64(1748389238-10000), 0)
 	uuidPast, err := newV7UUIDWithUnixSeconds(pastTime)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for UserID (slightly past):", err)
@@ -428,7 +524,7 @@ func TestPostCommentParamsValidation_UserID_UUIDTooFarInFuture(t *testing.T) {
 	defer teardown(t)
 
 	// Far future: 10 years ahead
-	futureTime := time.Now().Add(10 * 365 * 24 * time.Hour).Unix()
+	futureTime := time.Now().Add(10 * 365 * 24 * time.Hour)
 	uuidFuture, err := newV7UUIDWithUnixSeconds(futureTime)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for UserID (far future):", err)
@@ -447,7 +543,7 @@ func TestPostCommentParamsValidation_UserID_UUIDSlightlyInFuture(t *testing.T) {
 	defer teardown(t)
 
 	// Slightly in the future: 101 hours ahead
-	futureTime := time.Now().Add(101 * time.Hour).Unix()
+	futureTime := time.Now().Add(101 * time.Hour)
 	uuidFuture, err := newV7UUIDWithUnixSeconds(futureTime)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for UserID (slightly future):", err)
@@ -459,7 +555,7 @@ func TestPostCommentParamsValidation_UserID_UUIDSlightlyInFuture(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for UserID with V7 UUID slightly in the future, got nil")
 	}
-} */
+}
 
 // --- USERNAME ---
 
