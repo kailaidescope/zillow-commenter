@@ -659,6 +659,27 @@ func TestPostCommentParamsValidation_CommentText_NonPrintableASCII(t *testing.T)
 	}
 }
 
+func TestPostCommentParamsValidation_CommentText_AllNonPrintableASCII(t *testing.T) {
+	teardown, validate := SetupAndTeardown(t)
+	defer teardown(t)
+
+	for i := 0; i < 32; i++ {
+		params := validPostCommentParams(ValidParamsIPv4)
+		params.CommentText = "Valid text" + string(rune(i))
+		err := validate.Struct(params)
+		if err == nil {
+			t.Error("Expected error for CommentText containing non-printable ASCII (code ", i, "), got nil")
+		}
+	}
+	// DEL character (ASCII 127)
+	params := validPostCommentParams(ValidParamsIPv4)
+	params.CommentText = "Valid text" + string(rune(127))
+	err := validate.Struct(params)
+	if err == nil {
+		t.Errorf("Expected error for CommentText containing non-printable ASCII (code 127), got nil")
+	}
+}
+
 func TestPostCommentParamsValidation_CommentText_OnlyPrintableASCII(t *testing.T) {
 	teardown, validate := SetupAndTeardown(t)
 	defer teardown(t)
