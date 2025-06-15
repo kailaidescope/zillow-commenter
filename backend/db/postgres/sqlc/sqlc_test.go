@@ -500,12 +500,12 @@ func TestPostCommentParamsValidation_UserID_UUIDTooFarInPast(t *testing.T) {
 	}
 }
 
-func TestPostCommentParamsValidation_UserID_UUIDSlightlyInPast(t *testing.T) {
+func TestPostCommentParamsValidation_UserID_UUIDSlightlyTooFarPast(t *testing.T) {
 	teardown, validate := SetupAndTeardown(t)
 	defer teardown(t)
 
-	// Slightly before May 27, 2025 (reference: 1748389238)
-	pastTime := time.Unix(int64(1748389238-10000), 0)
+	// Slightly before Tue May 27 2025 23:53:20 GMT+0000 (reference: 1748390000)
+	pastTime := time.Unix(int64(1748390000-10), 0)
 	uuidPast, err := newV7UUIDWithUnixSeconds(pastTime)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for UserID (slightly past):", err)
@@ -516,6 +516,25 @@ func TestPostCommentParamsValidation_UserID_UUIDSlightlyInPast(t *testing.T) {
 	err = validate.Struct(params)
 	if err == nil {
 		t.Error("Expected error for UserID with V7 UUID slightly in the past, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_UserID_UUIDJustAfterValidationStart(t *testing.T) {
+	teardown, validate := SetupAndTeardown(t)
+	defer teardown(t)
+
+	// Slightly after Tue May 27 2025 23:53:20 GMT+0000 (reference: 1748390000)
+	pastTime := time.Unix(int64(1748390000+1000), 0)
+	uuidPast, err := newV7UUIDWithUnixSeconds(pastTime)
+	if err != nil {
+		t.Fatal("Failed to generate V7 UUID for UserID (far past):", err)
+	}
+	params := validPostCommentParams(ValidParamsIPv4)
+	params.UserID = uuidPast.String()
+
+	err = validate.Struct(params)
+	if err != nil {
+		t.Error("UUID timestamp should be accepted, but waws denied")
 	}
 }
 
@@ -546,7 +565,7 @@ func TestPostCommentParamsValidation_UserID_UUIDSlightlyInFuture(t *testing.T) {
 	futureTime := time.Now().Add(101 * time.Hour)
 	uuidFuture, err := newV7UUIDWithUnixSeconds(futureTime)
 	if err != nil {
-		t.Fatal("Failed to generate V7 UUID for UserID (slightly future):", err)
+		t.Fatal("Failed to generate V7 UUID for slightly in future:", err)
 	}
 	params := validPostCommentParams(ValidParamsIPv4)
 	params.UserID = uuidFuture.String()
@@ -691,4 +710,99 @@ func makeStringOfLength(n int) string {
 		s += "a"
 	}
 	return s
+}
+
+// ===================================================================================================================== //
+//                                        Custom UUID Validator Tests                                                    //
+// ===================================================================================================================== //
+
+func TestCustomUUIDValidator_ValidV7UUID(t *testing.T) {
+	u, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal("Failed to generate V7 UUID:", err)
+	}
+	if err := customUUIDValidator(u); err != nil {
+		t.Error("Expected valid V7 UUID, got error:", err)
+	}
+}
+
+func TestCustomUUIDValidator_InvalidVersion(t *testing.T) {
+	uuidV3 := uuid.NewMD5(uuid.NameSpaceDNS, []byte("example.com")) // Version 3
+	if err := customUUIDValidator(uuidV3); err == nil {
+		t.Error("Expected error for non-V7 UUID version, got nil")
+	}
+	uuidV4, err := uuid.NewRandom() // Version 4
+	if err != nil {
+		t.Fatal("Failed to generate V4 UUID:", err)
+	}
+	if err := customUUIDValidator(uuidV4); err == nil {
+		t.Error("Expected error for V4 UUID version, got nil")
+	}
+	uuidV6, err := uuid.NewV6()
+	if err != nil {
+		t.Fatal("Failed to generate V6 UUID:", err)
+	}
+	if err := customUUIDValidator(uuidV6); err == nil {
+		t.Error("Expected error for V6 UUID version, got nil")
+	}
+}
+
+func TestCustomUUIDValidator_TooFarInPast(t *testing.T) {
+	// Far past: 1970-01-01
+	pastTime := time.Unix(1000, 0)
+	u, err := newV7UUIDWithUnixSeconds(pastTime)
+	if err != nil {
+		t.Fatal("Failed to generate V7 UUID for far past:", err)
+	}
+	if err := customUUIDValidator(*u); err == nil {
+		t.Error("Expected error for UUID too far in the past, got nil")
+	}
+}
+
+func TestCustomUUIDValidator_JustBeforeAllowedPast(t *testing.T) {
+	// Just before allowed past: slightly before May 27 2025 23:53:20 GMT+0000
+	pastTime := time.Unix(1748390000-10, 0)
+	u, err := newV7UUIDWithUnixSeconds(pastTime)
+	if err != nil {
+		t.Fatal("Failed to generate V7 UUID for just before allowed past:", err)
+	}
+	if err := customUUIDValidator(*u); err == nil {
+		t.Error("Expected error for UUID just before allowed past, got nil")
+	}
+}
+
+func TestCustomUUIDValidator_JustAfterAllowedPast(t *testing.T) {
+	// Just after allowed past: slightly after May 27 2025 23:53:20 GMT+0000
+	pastTime := time.Unix(1748390000+1000, 0)
+	u, err := newV7UUIDWithUnixSeconds(pastTime)
+	if err != nil {
+		t.Fatal("Failed to generate V7 UUID for just after allowed past:", err)
+	}
+	if err := customUUIDValidator(*u); err != nil {
+		t.Errorf("Expected valid UUID just after allowed past, got error: %v", err)
+	}
+}
+
+func TestCustomUUIDValidator_TooFarInFuture(t *testing.T) {
+	// Far future: 10 years ahead
+	futureTime := time.Now().Add(10 * 365 * 24 * time.Hour)
+	u, err := newV7UUIDWithUnixSeconds(futureTime)
+	if err != nil {
+		t.Fatal("Failed to generate V7 UUID for far future:", err)
+	}
+	if err := customUUIDValidator(*u); err == nil {
+		t.Error("Expected error for UUID too far in the future, got nil")
+	}
+}
+
+func TestCustomUUIDValidator_SlightlyInFuture(t *testing.T) {
+	// Slightly in the future: 101 hours ahead
+	futureTime := time.Now().Add(101 * time.Hour)
+	u, err := newV7UUIDWithUnixSeconds(futureTime)
+	if err != nil {
+		t.Fatal("Failed to generate V7 UUID for slightly in future:", err)
+	}
+	if err := customUUIDValidator(*u); err == nil {
+		t.Error("Expected error for UUID slightly in the future, got nil")
+	}
 }

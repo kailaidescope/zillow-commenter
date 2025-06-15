@@ -4,6 +4,8 @@ package sqlc
 //                                             SQLC Usage Instructions                                                   //
 // ===================================================================================================================== //
 
+// MIGRATE
+
 //// Using [golang-migrate](https://github.com/golang-migrate/migrate)
 
 // To run migrate commands (from backend folder):
@@ -12,8 +14,20 @@ package sqlc
 // To create a new migration (from backend folder):
 // migrate create -ext sql -dir db/migrations -seq <name_of_migration>
 
+//
+
+// SQLC
+
 //sqlc generate
 //after having modified the query and schema files
+
+//
+
+// VALIDATOR
+
+// Using [golang validator](https://pkg.go.dev/github.com/go-playground/validator/v10#section-readme)
+
+// Allows for input validation on struct- or field-levels.
 
 // ===================================================================================================================== //
 //                                                 Real Code Below                                                       //
@@ -28,25 +42,6 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 )
-
-/* // User contains user information
-type User struct {
-	FirstName      string     `validate:"required"`
-	LastName       string     `validate:"required"`
-	Age            uint8      `validate:"gte=0,lte=130"`
-	Email          string     `validate:"required,email"`
-	Gender         string     `validate:"oneof=male female prefer_not_to"`
-	FavouriteColor string     `validate:"iscolor"`                // alias for 'hexcolor|rgb|rgba|hsl|hsla'
-	Addresses      []*Address `validate:"required,dive,required"` // a person can have a home and cottage...
-}
-
-// Address houses a users address information
-type Address struct {
-	Street string `validate:"required"`
-	City   string `validate:"required"`
-	Planet string `validate:"required"`
-	Phone  string `validate:"required"`
-} */
 
 // PostCommentParamsValidation is the function registered with the API's Validator singleton
 // in order to validate the PostCommentParams struct. Tags are not added to the struct directly
@@ -141,29 +136,20 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 // Output:
 //   - error: returns nil if the UUID is valid, or an error if it is not.
 func customUUIDValidator(uuid uuid.UUID) error {
-	// TIME COMPONENT
+	// VALIDATE TIMESTAMP
 
-	// Check the time component of the UUID.
-	uuidByteTimeComponent := uuid[0:6]
-
-	// Convert 6 bytes to uint64 by shifting
-	var intTimestamp uint64
-	for i := 0; i < 6; i++ {
-		intTimestamp = (intTimestamp << 8) | uint64(uuidByteTimeComponent[i])
-	}
-
-	convertedTimestamp := time.UnixMilli(int64(intTimestamp))
+	uuidTimestamp := getUUIDTimestamp(uuid)
 
 	// Define the past and future reference times for validation.
 
-	// (Sun Jun 08 2025 20:10:37 GMT+0000)
-	pastReferenceTime := time.Unix(1749413437, 0)
+	// (Tue May 27 2025 23:53:20 GMT+0000)
+	pastReferenceTime := time.Unix(1748390000, 0)
 
-	// 100 hours in the future
-	futureReferenceTime := time.Now().Add(100 * time.Hour)
+	// 10 hours in the future
+	futureReferenceTime := time.Now().Add(10 * time.Hour)
 
 	// Check uuid's timestamp against reference timestamps
-	if convertedTimestamp.Before(pastReferenceTime) || convertedTimestamp.After(futureReferenceTime) {
+	if uuidTimestamp.Before(pastReferenceTime) || uuidTimestamp.After(futureReferenceTime) {
 		return errors.New("UUID time component is not within the valid range")
 	}
 
@@ -175,6 +161,42 @@ func customUUIDValidator(uuid uuid.UUID) error {
 
 	return nil
 }
+
+func getUUIDTimestamp(uuid uuid.UUID) time.Time {
+	// Check the time component of the UUID.
+	uuidByteTimeComponent := uuid[0:6]
+
+	// Convert 6 bytes to uint64 by shifting
+	var intTimestamp uint64
+	for i := 0; i < 6; i++ {
+		intTimestamp = (intTimestamp << 8) | uint64(uuidByteTimeComponent[i])
+	}
+
+	convertedTimestamp := time.UnixMilli(int64(intTimestamp))
+
+	return convertedTimestamp
+}
+
+// EXAMPLE VALIDATOR USAGE
+
+/* // User contains user information
+type User struct {
+	FirstName      string     `validate:"required"`
+	LastName       string     `validate:"required"`
+	Age            uint8      `validate:"gte=0,lte=130"`
+	Email          string     `validate:"required,email"`
+	Gender         string     `validate:"oneof=male female prefer_not_to"`
+	FavouriteColor string     `validate:"iscolor"`                // alias for 'hexcolor|rgb|rgba|hsl|hsla'
+	Addresses      []*Address `validate:"required,dive,required"` // a person can have a home and cottage...
+}
+
+// Address houses a users address information
+type Address struct {
+	Street string `validate:"required"`
+	City   string `validate:"required"`
+	Planet string `validate:"required"`
+	Phone  string `validate:"required"`
+} */
 
 // ================================================================================================================== //
 //                                                Old Code Below                                                      //
