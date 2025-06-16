@@ -121,28 +121,6 @@ func TestPostCommentParamsValidation_Valid(t *testing.T) {
 	}
 }
 
-func TestPostCommentParamsValidation_Valid_AltIPv4(t *testing.T) {
-	teardown, validate := SetupAndTeardown(t)
-	defer teardown(t)
-
-	params := validPostCommentParams(ValidParamsAltIPv4)
-	err := validate.Struct(params)
-	if err != nil {
-		t.Errorf("Expected valid params for AltIPv4, got error: %v", err)
-	}
-}
-
-func TestPostCommentParamsValidation_Valid_IPv6(t *testing.T) {
-	teardown, validate := SetupAndTeardown(t)
-	defer teardown(t)
-
-	params := validPostCommentParams(ValidParamsIPv6)
-	err := validate.Struct(params)
-	if err != nil {
-		t.Errorf("Expected valid params for IPv6, got error: %v", err)
-	}
-}
-
 // --- COMMENTID ---
 
 func TestPostCommentParamsValidation_CommentID_Required(t *testing.T) {
@@ -163,18 +141,19 @@ func TestPostCommentParamsValidation_CommentID_AlmostValidUUID(t *testing.T) {
 	defer teardown(t)
 
 	params := validPostCommentParams(ValidParamsIPv4)
-	// Set invalid UUID bytes (not a valid UUID)
+	// Set valid UUID bytes to be edited
 	tempId := params.CommentID.String()
-	// Change the 15th character (index 14) from '7' to a different digit, changing the version code
+	// Change the version code (at index 14) from '7' to a different digit, changing the
 	if len(tempId) > 14 && tempId[14] == '7' {
 		tempId = tempId[:14] + "3" + tempId[15:] // Change '7' to '3' for testing
 	}
-	uuid, err := uuid.Parse(tempId)
+	invalidVersionUUID, err := uuid.Parse(tempId)
 	if err != nil {
 		t.Error("Failed to parse modified CommentID UUID:", err)
 		return
 	}
-	params.CommentID = pgtype.UUID{Bytes: [16]byte(uuid), Valid: true}
+	// Set the modified UUID back to the params
+	params.CommentID = pgtype.UUID{Bytes: [16]byte(invalidVersionUUID), Valid: true}
 
 	err = validate.Struct(params)
 	if err == nil {
@@ -291,6 +270,30 @@ func TestPostCommentParamsValidation_UserIp_InvalidIP(t *testing.T) {
 	}
 }
 
+// Test valid IPv4 address
+func TestPostCommentParamsValidation_Valid_AltIPv4(t *testing.T) {
+	teardown, validate := SetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsAltIPv4)
+	err := validate.Struct(params)
+	if err != nil {
+		t.Errorf("Expected valid params for AltIPv4, got error: %v", err)
+	}
+}
+
+// Test valid IPv6 Address
+func TestPostCommentParamsValidation_Valid_IPv6(t *testing.T) {
+	teardown, validate := SetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv6)
+	err := validate.Struct(params)
+	if err != nil {
+		t.Errorf("Expected valid params for IPv6, got error: %v", err)
+	}
+}
+
 // --- USERID ---
 
 func TestPostCommentParamsValidation_UserID_Required(t *testing.T) {
@@ -389,7 +392,7 @@ func TestPostCommentParamsValidation_UserID_Version6UUID(t *testing.T) {
 // Ouput:
 //   - *uuid.UUID: a pointer to a uuid with the specified time segment, nil if error occurred
 //   - error: non-nil when an error occurs during processing
-func newV7UUIDWithUnixSeconds(timestamp time.Time) (*uuid.UUID, error) {
+func newV7UUIDWithUnixTimestamp(timestamp time.Time) (*uuid.UUID, error) {
 	// Create new V7 UUID
 	tempUUID, err := uuid.NewV7()
 	if err != nil {
@@ -426,7 +429,7 @@ func TestUUIDTimeGen_10Days(t *testing.T) {
 	timestamp := (time.Now().Add(time.Hour * 24 * -10))
 
 	// Generate a new UUID with that timestamp
-	fabricatedUUID, err := newV7UUIDWithUnixSeconds(timestamp)
+	fabricatedUUID, err := newV7UUIDWithUnixTimestamp(timestamp)
 	if err != nil {
 		t.Fatal("Failed to generate UUID with specified time", err)
 	}
@@ -444,6 +447,10 @@ func TestUUIDTimeGen_10Days(t *testing.T) {
 	// Check the timestampe bytes against the UUID's bytes
 	if bytes.Compare(timeBuffer.Bytes()[2:8], fabricatedUUID[0:6]) != 0 {
 		t.Fatal("Fabricated UUID timestamp does not match intended timestamp")
+	}
+
+	if !getUUIDTimestamp(*fabricatedUUID).Equal(timestamp) {
+		t.Fatal("Fabricated UUID timestamp does not match intended timestamp (getUUIDTimestamp mismatch)")
 	}
 
 	log.Println("Generated 10-day-old UUID: ", fabricatedUUID)
@@ -456,7 +463,7 @@ func TestUUIDTimeGen_100Days(t *testing.T) {
 	timestamp := (time.Now().Add(time.Hour * 24 * -100))
 
 	// Generate a new UUID with that timestamp
-	fabricatedUUID, err := newV7UUIDWithUnixSeconds(timestamp)
+	fabricatedUUID, err := newV7UUIDWithUnixTimestamp(timestamp)
 	if err != nil {
 		t.Fatal("Failed to generate UUID with specified time", err)
 	}
@@ -476,18 +483,21 @@ func TestUUIDTimeGen_100Days(t *testing.T) {
 		t.Fatal("Fabricated UUID timestamp does not match intended timestamp")
 	}
 
+	if !getUUIDTimestamp(*fabricatedUUID).Equal(timestamp) {
+		t.Fatal("Fabricated UUID timestamp does not match intended timestamp (getUUIDTimestamp mismatch)")
+	}
+
 	log.Println("Generated 100-day-old UUID: ", fabricatedUUID)
 }
 
-// Tests for illogical UUID dates
-
+// Test for illogical UUID dates in the past
 func TestPostCommentParamsValidation_UserID_UUIDTooFarInPast(t *testing.T) {
 	teardown, validate := SetupAndTeardown(t)
 	defer teardown(t)
 
 	// Far past: 1970-01-01
 	pastTime := time.Unix(int64(1000), 0)
-	uuidPast, err := newV7UUIDWithUnixSeconds(pastTime)
+	uuidPast, err := newV7UUIDWithUnixTimestamp(pastTime)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for UserID (far past):", err)
 	}
@@ -504,9 +514,9 @@ func TestPostCommentParamsValidation_UserID_UUIDSlightlyTooFarPast(t *testing.T)
 	teardown, validate := SetupAndTeardown(t)
 	defer teardown(t)
 
-	// Slightly before Tue May 27 2025 23:53:20 GMT+0000 (reference: 1748390000)
+	// Slightly before Tue May 27 2025 23:53:20 GMT+0000 (unix 1748390000)
 	pastTime := time.Unix(int64(1748390000-10), 0)
-	uuidPast, err := newV7UUIDWithUnixSeconds(pastTime)
+	uuidPast, err := newV7UUIDWithUnixTimestamp(pastTime)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for UserID (slightly past):", err)
 	}
@@ -519,13 +529,14 @@ func TestPostCommentParamsValidation_UserID_UUIDSlightlyTooFarPast(t *testing.T)
 	}
 }
 
+// Test for valid UUID date
 func TestPostCommentParamsValidation_UserID_UUIDJustAfterValidationStart(t *testing.T) {
 	teardown, validate := SetupAndTeardown(t)
 	defer teardown(t)
 
-	// Slightly after Tue May 27 2025 23:53:20 GMT+0000 (reference: 1748390000)
+	// Slightly after Tue May 27 2025 23:53:20 GMT+0000 (unix 1748390000)
 	pastTime := time.Unix(int64(1748390000+1000), 0)
-	uuidPast, err := newV7UUIDWithUnixSeconds(pastTime)
+	uuidPast, err := newV7UUIDWithUnixTimestamp(pastTime)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for UserID (far past):", err)
 	}
@@ -534,17 +545,18 @@ func TestPostCommentParamsValidation_UserID_UUIDJustAfterValidationStart(t *test
 
 	err = validate.Struct(params)
 	if err != nil {
-		t.Error("UUID timestamp should be accepted, but waws denied")
+		t.Error("UUID timestamp should be accepted, but was denied")
 	}
 }
 
+// Test more illogical UUID dates, in the future
 func TestPostCommentParamsValidation_UserID_UUIDTooFarInFuture(t *testing.T) {
 	teardown, validate := SetupAndTeardown(t)
 	defer teardown(t)
 
 	// Far future: 10 years ahead
 	futureTime := time.Now().Add(10 * 365 * 24 * time.Hour)
-	uuidFuture, err := newV7UUIDWithUnixSeconds(futureTime)
+	uuidFuture, err := newV7UUIDWithUnixTimestamp(futureTime)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for UserID (far future):", err)
 	}
@@ -561,9 +573,9 @@ func TestPostCommentParamsValidation_UserID_UUIDSlightlyInFuture(t *testing.T) {
 	teardown, validate := SetupAndTeardown(t)
 	defer teardown(t)
 
-	// Slightly in the future: 101 hours ahead
-	futureTime := time.Now().Add(101 * time.Hour)
-	uuidFuture, err := newV7UUIDWithUnixSeconds(futureTime)
+	// Slightly in the future: 10 hours ahead
+	futureTime := time.Now().Add(10 * time.Hour)
+	uuidFuture, err := newV7UUIDWithUnixTimestamp(futureTime)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for slightly in future:", err)
 	}
@@ -659,6 +671,8 @@ func TestPostCommentParamsValidation_CommentText_NonPrintableASCII(t *testing.T)
 	}
 }
 
+// Attempt to validate CommentText with all non-printable ASCII characters, prints
+// error indicating which character code caused the failure.
 func TestPostCommentParamsValidation_CommentText_AllNonPrintableASCII(t *testing.T) {
 	teardown, validate := SetupAndTeardown(t)
 	defer teardown(t)
@@ -680,6 +694,7 @@ func TestPostCommentParamsValidation_CommentText_AllNonPrintableASCII(t *testing
 	}
 }
 
+// Tests validating a comment with only printable ASCII characters.
 func TestPostCommentParamsValidation_CommentText_OnlyPrintableASCII(t *testing.T) {
 	teardown, validate := SetupAndTeardown(t)
 	defer teardown(t)
@@ -759,7 +774,7 @@ func TestCustomUUIDValidator_InvalidVersion(t *testing.T) {
 	if err := customUUIDValidator(uuidV4); err == nil {
 		t.Error("Expected error for V4 UUID version, got nil")
 	}
-	uuidV6, err := uuid.NewV6()
+	uuidV6, err := uuid.NewV6() // Version 6
 	if err != nil {
 		t.Fatal("Failed to generate V6 UUID:", err)
 	}
@@ -771,7 +786,7 @@ func TestCustomUUIDValidator_InvalidVersion(t *testing.T) {
 func TestCustomUUIDValidator_TooFarInPast(t *testing.T) {
 	// Far past: 1970-01-01
 	pastTime := time.Unix(1000, 0)
-	u, err := newV7UUIDWithUnixSeconds(pastTime)
+	u, err := newV7UUIDWithUnixTimestamp(pastTime)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for far past:", err)
 	}
@@ -783,7 +798,7 @@ func TestCustomUUIDValidator_TooFarInPast(t *testing.T) {
 func TestCustomUUIDValidator_JustBeforeAllowedPast(t *testing.T) {
 	// Just before allowed past: slightly before May 27 2025 23:53:20 GMT+0000
 	pastTime := time.Unix(1748390000-10, 0)
-	u, err := newV7UUIDWithUnixSeconds(pastTime)
+	u, err := newV7UUIDWithUnixTimestamp(pastTime)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for just before allowed past:", err)
 	}
@@ -795,7 +810,7 @@ func TestCustomUUIDValidator_JustBeforeAllowedPast(t *testing.T) {
 func TestCustomUUIDValidator_JustAfterAllowedPast(t *testing.T) {
 	// Just after allowed past: slightly after May 27 2025 23:53:20 GMT+0000
 	pastTime := time.Unix(1748390000+1000, 0)
-	u, err := newV7UUIDWithUnixSeconds(pastTime)
+	u, err := newV7UUIDWithUnixTimestamp(pastTime)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for just after allowed past:", err)
 	}
@@ -807,7 +822,7 @@ func TestCustomUUIDValidator_JustAfterAllowedPast(t *testing.T) {
 func TestCustomUUIDValidator_TooFarInFuture(t *testing.T) {
 	// Far future: 10 years ahead
 	futureTime := time.Now().Add(10 * 365 * 24 * time.Hour)
-	u, err := newV7UUIDWithUnixSeconds(futureTime)
+	u, err := newV7UUIDWithUnixTimestamp(futureTime)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for far future:", err)
 	}
@@ -817,9 +832,9 @@ func TestCustomUUIDValidator_TooFarInFuture(t *testing.T) {
 }
 
 func TestCustomUUIDValidator_SlightlyInFuture(t *testing.T) {
-	// Slightly in the future: 101 hours ahead
-	futureTime := time.Now().Add(101 * time.Hour)
-	u, err := newV7UUIDWithUnixSeconds(futureTime)
+	// Slightly in the future: 10 hours ahead
+	futureTime := time.Now().Add(10 * time.Hour)
+	u, err := newV7UUIDWithUnixTimestamp(futureTime)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for slightly in future:", err)
 	}
