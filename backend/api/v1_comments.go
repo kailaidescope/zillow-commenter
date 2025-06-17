@@ -123,6 +123,26 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	// Log the new comment creation
 	log.Println("New comment created for listing:", listingID, "by user:", username, "at timestamp:", timestamp)
 	log.Println("Comment details:", newComment)
+	log.Println("Sanitizing and validating comment parameters...")
+
+	// Perform first round validation on new comment parameters
+	if err := server.Validator.Struct(newComment); err != nil {
+		log.Println("Failed first round of validation for new comment:", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input data"})
+		return
+	}
+
+	// Sanitize the comment parameters to prevent XSS attacks
+	newComment = server.sanitizePostCommentParams(newComment)
+
+	// Perform second round validation on sanitized new comment parameters
+	//
+	// Ensures that the comment parameters are safe and valid after sanitization
+	if err := server.Validator.Struct(newComment); err != nil {
+		log.Println("Failed second round of validation for new comment:", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input data"})
+		return
+	}
 
 	// Acquire a Postgres connection from the pool
 	postgresConnection, err := server.GetPostgresPool().Acquire(context.TODO())
