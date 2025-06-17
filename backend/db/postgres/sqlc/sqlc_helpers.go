@@ -6,7 +6,7 @@ package sqlc
 
 // MIGRATE
 
-//// Using [golang-migrate](https://github.com/golang-migrate/migrate)
+// Using [golang-migrate](https://github.com/golang-migrate/migrate)
 
 // To run migrate commands (from backend folder):
 // migrate -path db/migrations -database "<connection_string>" -verbose <command_to_be_executed>
@@ -18,8 +18,8 @@ package sqlc
 
 // SQLC
 
-//sqlc generate
-//after having modified the query and schema files
+// sqlc generate
+// after having modified the query and schema files
 
 //
 
@@ -29,19 +29,51 @@ package sqlc
 
 // Allows for input validation on struct- or field-levels.
 
+//
+
+// BLUEMONDAY
+
+// Using [bluemonday](https://pkg.go.dev/github.com/microcosm-cc/bluemonday@v1.0.26)
+
+// Allows for HTML sanitization of user input, preventing XSS attacks.
+
+//
+
 // ===================================================================================================================== //
 //                                                 Real Code Below                                                       //
 // ===================================================================================================================== //
 
 import (
 	"errors"
-	"log"
 	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
+	"github.com/microcosm-cc/bluemonday"
 )
+
+func (postCommentParams PostCommentParams) Sanitize(sanitizationPolicy bluemonday.Policy) PostCommentParams {
+	// Fields to Sanitize:
+	//
+	// CommentID   pgtype.UUID
+	// ListingID   string
+	// UserIp      string
+	// UserID      string
+	// Username    string
+	// CommentText string
+
+	sanitizedCommentParams := postCommentParams
+
+	// CommentID is a pgtype.UUID (binary), and validated to ensure it is typed correctly, so no sanitization needed
+	sanitizedCommentParams.ListingID = sanitizationPolicy.Sanitize(sanitizedCommentParams.ListingID)
+	sanitizedCommentParams.UserIp = sanitizationPolicy.Sanitize(sanitizedCommentParams.UserIp)
+	sanitizedCommentParams.UserID = sanitizationPolicy.Sanitize(sanitizedCommentParams.UserID)
+	sanitizedCommentParams.Username = sanitizationPolicy.Sanitize(sanitizedCommentParams.Username)
+	sanitizedCommentParams.CommentText = sanitizationPolicy.Sanitize(sanitizedCommentParams.CommentText)
+
+	return sanitizedCommentParams
+}
 
 // PostCommentParamsValidation is the function registered with the API's Validator singleton
 // in order to validate the PostCommentParams struct. Tags are not added to the struct directly
@@ -70,7 +102,7 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 		sl.ReportError(postCommentParams.CommentID, "CommentID", "CommentID", "uuid", "")
 	}
 
-	log.Println("Validating CommentID:", commentUUID.String())
+	//log.Println("Validating CommentID:", commentUUID.String())
 
 	// TODO: check that this test ensures UUID is not empty and not invalid
 	// Example uuid : f81d4fae-7dec-11d0-a765-00a0c91e6bf6
