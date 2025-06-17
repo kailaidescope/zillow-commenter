@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 
-	"zillow-commenter.com/m/api/models"
 	"zillow-commenter.com/m/db/postgres/sqlc"
 	"zillow-commenter.com/m/token"
 
@@ -120,7 +119,7 @@ func GetNewServer() (*Server, error) {
 	//                                             End of mounting routes                                              //
 	// =============================================================================================================== //
 
-	models.InitTempCommentDB() // Initialize the temporary comment database
+	//models.InitTempCommentDB() // Initialize the temporary comment database
 
 	server.LambdaAdapter = ginadapter.New(router)
 
