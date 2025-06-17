@@ -26,8 +26,8 @@ zip ./bin/x.x.x/zillowette_lambda.zip ./bin/x.x.x/bootstrap
 $env:GOOS = "linux"
 $env:GOARCH = "arm64"
 $env:CGO_ENABLED = "0"
-go build -tags lambda.norpc -o ./bin/bootstrap main.go
-~\Go\Bin\build-lambda-zip.exe -o ./bin/zillowette_lambda.zip ./bin/bootstrap
+go build -tags lambda.norpc -o ./bin/x.x.x/bootstrap main.go
+~\Go\Bin\build-lambda-zip.exe -o ./bin/x.x.x/zillowette_lambda.zip ./bin/x.x.x/bootstrap
 ```
 
 AWS CLI commands:

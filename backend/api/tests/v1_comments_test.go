@@ -33,7 +33,7 @@ func formatResponse(resp *resty.Response) string {
 
 // --- SANITIZATION TESTS ---
 
-func TestPostComment_SanitizesListingID(t *testing.T) {
+func TestPostComment_ValidateListingID(t *testing.T) {
 	testingSuite, apiIP := SetupAndTeardown(t)
 	defer testingSuite(t)
 
