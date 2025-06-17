@@ -9,6 +9,7 @@ import (
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
 
+	ginadaptercore "github.com/awslabs/aws-lambda-go-api-proxy/core"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -27,9 +28,15 @@ import (
 //   - 404: If the listing does not exist.
 //   - 500: Internal server error if something goes wrong.
 func (server *Server) GetListingComments(c *gin.Context) {
+
 	// Get information from the request context
 	listingID := c.Param("listing_id")
-	userIP := c.ClientIP()
+	userIP, err := getUserIP(c)
+	if err != nil {
+		log.Println("Error getting user IP:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
 	timestamp := time.Now().Unix()
 
 	log.Println("GetListingComments called with listing_id:", listingID, "\nfrom IP:", userIP, "\nat timestamp:", timestamp)
@@ -69,7 +76,12 @@ func (server *Server) GetListingComments(c *gin.Context) {
 //   - 500: Internal server error if something goes wrong.
 func (server *Server) PostListingComment(c *gin.Context) {
 	// Get information from the request context
-	userIP := c.ClientIP()
+	userIP, err := getUserIP(c)
+	if err != nil {
+		log.Println("Error getting user IP:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
 	timestamp := time.Now().Unix()
 
 	// Get postform data
@@ -133,7 +145,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	}
 
 	// Sanitize the comment parameters to prevent XSS attacks
-	newComment = server.sanitizePostCommentParams(newComment)
+	newComment = newComment.Sanitize(*server.SantizationPolicy)
 
 	// Perform second round validation on sanitized new comment parameters
 	//
@@ -228,6 +240,16 @@ func (server Server) getComments(listingID string) ([]models.Comment, error) {
 // Output:
 //   - 200: A JSON object containing the generated user ID. ID is a V7 (Time) UUID.
 func (server *Server) GenerateUserID(c *gin.Context) {
+	// Get information from the request context
+	userIP, err := getUserIP(c)
+	if err != nil {
+		log.Println("Error getting user IP:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+	timestamp := time.Now().Unix()
+	log.Println("GenerateUserID called from IP:", userIP, "at timestamp:", timestamp)
+
 	// Generate a new UUID for the user using a timestamp-based version (v7) to ensure uniqueness
 	userID, err := uuid.NewV7()
 	if err != nil {
@@ -243,24 +265,62 @@ func (server *Server) GenerateUserID(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user_id": userID.String()})
 }
 
-// sanitizePostCommentParams prevents XSS attacks by using bluemonday's
-// HTML sanitizer to clean the data before inserting into the database.
+// getUserIP retrieves the user's IP address from the API Gateway context.
 //
 // Input:
-//   - postCommentParams: a struct containing a comment attempting to be posted, which may contain unsafe HTML.
+//   - c: The gin context containing the request.
 //
 // Output:
-//   - postCommentParams: a sanitized struct containing the comment to be posted.
-func (server Server) sanitizePostCommentParams(postCommentParams sqlc.PostCommentParams) sqlc.PostCommentParams {
-	// Fields to sanitize:
-	//
-	// CommentID   pgtype.UUID
-	// ListingID   string
-	// UserIp      string
-	// UserID      string
-	// Username    string
-	// CommentText string
+//   - A pointer to a string containing the user's IP address.
+//   - An error if the API Gateway context does not contain a valid SourceIP.
+func getUserIP(c *gin.Context) (string, error) {
+	apiGatewayContext, ok := ginadaptercore.GetAPIGatewayContextFromContext(c.Request.Context())
+	if !ok {
+		return "", errors.New("failed to get API Gateway context from request context")
+	}
+	if apiGatewayContext.Identity.SourceIP == "" {
+		return "", errors.New("API Gateway context does not contain a valid SourceIP")
+	}
 
-	// Return the sanitized parameters
-	return postCommentParams
+	userIP := apiGatewayContext.Identity.SourceIP
+	return userIP, nil
+}
+
+// debugAPIGatewayContext logs the API Gateway context information from the gin context.
+//
+// This function is useful for debugging purposes to inspect the API Gateway context.
+//
+// Input:
+//   - c: The gin context containing the request.
+func debugAPIGatewayContext(c *gin.Context) {
+	// Debug gin context params
+	for k, v := range c.Params {
+		log.Printf("Context key: %v, value: %v\n", k, v)
+	}
+
+	// Debug gin context request
+	log.Println("Context request method:", c.Request)
+
+	// Debug gin context errors
+	for k, v := range c.Errors {
+		log.Printf("Context error key: %v, value: %v\n", k, v)
+	}
+
+	// the methods are available in your instance of the GinLambda
+	// object and receive the context
+	apiGwContext, contextOk := ginadaptercore.GetAPIGatewayContextFromContext(c.Request.Context())
+	apiGwStageVars, varsOk := ginadaptercore.GetStageVarsFromContext(c.Request.Context())
+	runtimeContext, runtimeCtxOk := ginadaptercore.GetRuntimeContextFromContext(c.Request.Context())
+
+	// you can access the properties of the context directly
+	log.Println("API GW Context:", apiGwContext, ", Okay: ", contextOk)
+	log.Println("API GW Context Request ID:", apiGwContext.RequestID, ", Okay: ", contextOk)
+	log.Println("API GW Context Stage:", apiGwContext.Stage, ", Okay: ", contextOk)
+	log.Println("API GW User IP:", apiGwContext.Identity.SourceIP)
+	log.Println("API GW Context Stage Variables:", apiGwStageVars, ", Okay: ", varsOk)
+	if runtimeContext != nil {
+		log.Println("Runtime Context Invoked Function ARN: ", runtimeContext.InvokedFunctionArn, ", Okay: ", runtimeCtxOk)
+	} else {
+		log.Println("Runtime Context is nil, Okay: ", runtimeCtxOk)
+	}
 }

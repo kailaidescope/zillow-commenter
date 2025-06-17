@@ -1,6 +1,31 @@
 // The api package contains the server and its routes for the application.
 package api
 
+// =============================================================================================================== //
+//                                            Dependency Overview                                                  //
+// =============================================================================================================== //
+
+// GIN
+
+// [Documentation](https://github.com/gin-gonic/gin)
+
+// Used to create a simple web API to be hosted on AWS.
+
+//
+
+// AWS-LAMBDA-GO-API-PROXY
+
+// [Documentation](https://github.com/awslabs/aws-lambda-go-api-proxy)
+
+// Used to interpret AWS Gateway and Lambda events in the backend API.
+
+// [ginadapter gin documentation](https://github.com/awslabs/aws-lambda-go-api-proxy?tab=readme-ov-file#api-gateway-context-and-stage-variables)
+// [ginadapter core documentation](https://pkg.go.dev/github.com/awslabs/aws-lambda-go-api-proxy@v0.16.2/core#RequestAccessor)
+
+// Used to get client info from AWS Gateway, such as the client's IP address.
+
+//
+
 import (
 	"context"
 	"net/http"
