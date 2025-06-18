@@ -53,6 +53,14 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 )
 
+// PostCommentParams.Sanitize sanitizes the fields of the PostCommentParams struct using the provided sanitization policy.
+// Should always be called before inserting the struct into the database to ensure that all fields are sanitized.
+//
+// Input:
+//   - sanitizationPolicy: a bluemonday.Policy object that defines the sanitization rules to be applied.
+//
+// Output:
+//   - PostCommentParams: a new PostCommentParams struct with sanitized fields.
 func (postCommentParams PostCommentParams) Sanitize(sanitizationPolicy bluemonday.Policy) PostCommentParams {
 	// Fields to Sanitize:
 	//

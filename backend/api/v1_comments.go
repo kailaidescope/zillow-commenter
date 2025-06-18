@@ -56,6 +56,7 @@ func (server *Server) GetListingComments(c *gin.Context) {
 
 	// Return the comments as a JSON response
 	c.JSON(http.StatusOK, responseComments)
+	log.Println("Successfully returning comments for listing:", listingID, ":", responseComments)
 }
 
 // PostListingComment creates a new comment for a specific zillow listing.
@@ -90,29 +91,9 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	username := c.PostForm("username")
 	commentText := c.PostForm("comment_text")
 
+	// Log the request details
 	log.Printf("PostListingComment called with listing_id: %s, user_id: %s, username: %s, comment_text: %s\nfrom IP: %s\nat timestamp: %d",
 		listingID, userID, username, commentText, userIP, timestamp)
-
-	// Validate input data
-	{
-		if listingID == "" || userID == "" || username == "" || commentText == "" {
-			log.Println("Invalid input data: listing_id, user_id, username, and comment_text are required")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input data"})
-			return
-		}
-
-		if len(commentText) > 300 {
-			log.Println("Comment text exceeds maximum length of 300 characters")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Comment text exceeds maximum length of 300 characters"})
-			return
-		}
-
-		if len(username) > 50 {
-			log.Println("Username exceeds maximum length of 50 characters")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Username exceeds maximum length of 50 characters"})
-			return
-		}
-	}
 
 	// Generate a new UUID for the comment using a timestamp-based version (v7) to ensure uniqueness
 	commentID, err := uuid.NewV7()
@@ -188,9 +169,16 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	//log.Println("Response comments for listing:", listingID, ":", responseComments)
 	c.JSON(http.StatusCreated, newCommentFromDB) */
 
+	/* returnedComment, err := models.CommentRowToComment(postCommentRow)
+	if err != nil {
+		log.Println("Error converting new comment row to models.Comment struct for listing:", listingID, "-", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	} */
+
 	// Log the successful creation of the new comment
-	log.Println("New comment successfully created for listing:", listingID, ":", postCommentRow)
 	c.JSON(http.StatusCreated, postCommentRow)
+	log.Println("New comment successfully created for listing:", listingID, ":", postCommentRow)
 }
 
 // Helper function to get comments for a specific listing.
@@ -219,7 +207,7 @@ func (server Server) getComments(listingID string) ([]models.Comment, error) {
 	}
 
 	// Convert the sqlc.GetCommentsByListingIDRow structs to models.Comment structs
-	comments, err := models.CommentRowsToComments(commentRows)
+	comments, err := models.GetCommentRowsToComments(commentRows)
 	if err != nil {
 		log.Println("Error converting comment rows to models. Comment structs for listing:", listingID, "-", err)
 		return nil, errors.Join(err, errors.New("failed to convert comment rows to models.Comment structs"))
@@ -263,6 +251,7 @@ func (server *Server) GenerateUserID(c *gin.Context) {
 
 	// Return the user ID as a JSON response
 	c.JSON(http.StatusOK, gin.H{"user_id": userID.String()})
+	log.Println("Successfully returned user ID:", userID.String())
 }
 
 // getUserIP retrieves the user's IP address from the API Gateway context.

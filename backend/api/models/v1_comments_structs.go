@@ -33,7 +33,7 @@ type ResponseComment struct {
 	Timestamp     int64     `json:"timestamp"`
 }
 
-// GenericRowToComment converts any struct with the required fields to a Comment object.
+// GenericSQLCRowToComment converts any struct with the required fields to a Comment object.
 // The input must be a struct with fields: CommentID (pgtype.UUID), ListingID (string), UserIp (string),
 // UserID (string), Username (string), CommentText (string), Extract (pgtype.Numeric).
 //
@@ -43,7 +43,7 @@ type ResponseComment struct {
 // Output:
 //   - *Comment: a pointer to a Comment struct containing the comment data.
 //   - error: an error if the conversion fails, otherwise nil.
-func GenericRowToComment(row interface{}) (*Comment, error) {
+func GenericSQLCRowToComment(row interface{}) (*Comment, error) {
 	v := reflect.ValueOf(row)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -70,7 +70,7 @@ func GenericRowToComment(row interface{}) (*Comment, error) {
 		return nil, errors.New("CommentID field is not valid")
 	}
 
-	commentUUID, err := uuid.ParseBytes(uuidBytes.Bytes[:])
+	commentUUID, err := uuid.FromBytes(uuidBytes.Bytes[:])
 	if err != nil {
 		return nil, errors.Join(err, errors.New("invalid comment ID format"))
 	}
@@ -139,7 +139,35 @@ func GenericRowToComment(row interface{}) (*Comment, error) {
 	}, nil
 }
 
-// CommentRowToComment converts a postgres database row from GetCommentsByListingID to a Comment struct used by the API.
+// ToPostCommentRow converts a Comment struct used by the API to a sqlc.PostCommentRow struct used by postgres.
+//
+// Input:
+//   - comment: a Comment struct containing the comment data.
+//
+// Output:
+//   - *sqlc.PostCommentRow: a pointer to a sqlc.PostCommentRow struct containing the comment data.
+func (comment *Comment) ToPostCommentRow() *sqlc.PostCommentRow {
+	// Convert go types to postgres types.
+
+	// Convert the timestamp to pgtype.Numeric.
+	extract := pgtype.Numeric{
+		Int:   big.NewInt(comment.Timestamp),
+		Valid: true,
+	}
+
+	// Create a GetCommentsByListingIDRow struct from the Comment struct.
+	return &sqlc.PostCommentRow{
+		CommentID:   pgtype.UUID{Bytes: [16]byte(comment.CommentID), Valid: true},
+		ListingID:   comment.TargetListing,
+		UserIp:      comment.UserIP,
+		UserID:      comment.UserID,
+		Username:    comment.Username,
+		CommentText: comment.CommentText,
+		Extract:     extract,
+	}
+}
+
+// GetCommentRowToComment converts a postgres database row from GetCommentsByListingID to a Comment struct used by the API.
 //
 // Input:
 //   - row: a sqlc.GetCommentsByListingIDRow struct containing the comment data from the database.
@@ -147,10 +175,13 @@ func GenericRowToComment(row interface{}) (*Comment, error) {
 // Output:
 //   - Comment: a Comment struct containing the comment data.
 //   - error: an error if the conversion fails, otherwise nil.
-func CommentRowToComment(row sqlc.GetCommentsByListingIDRow) (*Comment, error) {
+func GetCommentRowToComment(row sqlc.GetCommentsByListingIDRow) (*Comment, error) {
 	// Convert postgres types to Go types.
 
 	// Convert the comment ID from pgtype.UUID to uuid.UUID.
+	if !row.CommentID.Valid {
+		return nil, errors.New("comment ID is not valid")
+	}
 	commentUUID, err := uuid.FromBytes(row.CommentID.Bytes[:])
 	if err != nil {
 		// If the conversion fails, return an error indicating the format is invalid.
@@ -180,11 +211,11 @@ func CommentRowToComment(row sqlc.GetCommentsByListingIDRow) (*Comment, error) {
 	}, nil
 }
 
-// CommentRowsToComments converts a slice of sqlc.GetCommentsByListingIDRow to a slice of Comment structs.
-func CommentRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]Comment, error) {
+// GetCommentRowsToComments converts a slice of sqlc.GetCommentsByListingIDRow to a slice of Comment structs.
+func GetCommentRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]Comment, error) {
 	var comments []Comment
 	for _, row := range rows {
-		comment, err := CommentRowToComment(row)
+		comment, err := GetCommentRowToComment(row)
 		if err != nil {
 			return nil, errors.Join(err, errors.New("failed to convert comment row to Comment struct"))
 		}
@@ -193,7 +224,7 @@ func CommentRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]Comment, er
 	return comments, nil
 }
 
-// CommentToCommentRow converts a Comment struct used by the API to a sqlc.GetCommentsByListingIDRow struct used by postgres.
+// CommentToGetCommentRow converts a Comment struct used by the API to a sqlc.GetCommentsByListingIDRow struct used by postgres.
 //
 // Input:
 //   - comment: a Comment struct containing the comment data.
@@ -201,7 +232,7 @@ func CommentRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]Comment, er
 // Output:
 //   - sqlc.GetCommentsByListingIDRow: a sqlc.GetCommentsByListingIDRow struct containing the comment data.
 //   - error: an error if the conversion fails, otherwise nil.
-func CommentToCommentRow(comment Comment) *sqlc.GetCommentsByListingIDRow {
+func CommentToGetCommentRow(comment Comment) *sqlc.GetCommentsByListingIDRow {
 	// Convert go types to postgres types.
 
 	// Convert the timestamp to pgtype.Numeric.
@@ -222,11 +253,11 @@ func CommentToCommentRow(comment Comment) *sqlc.GetCommentsByListingIDRow {
 	}
 }
 
-// CommentsToCommentRows converts a slice of Comment structs to a slice of sqlc.GetCommentsByListingIDRow structs.
-func CommentsToCommentRows(comments []Comment) []sqlc.GetCommentsByListingIDRow {
+// CommentsToGetCommentRows converts a slice of Comment structs to a slice of sqlc.GetCommentsByListingIDRow structs.
+func CommentsToGetCommentRows(comments []Comment) []sqlc.GetCommentsByListingIDRow {
 	var commentRows []sqlc.GetCommentsByListingIDRow
 	for _, comment := range comments {
-		commentRow := CommentToCommentRow(comment)
+		commentRow := CommentToGetCommentRow(comment)
 		commentRows = append(commentRows, *commentRow)
 	}
 	return commentRows
@@ -252,211 +283,4 @@ func ToResponseSlice(comments []Comment) []ResponseComment {
 	}
 
 	return response
-}
-
-var TempCommentDB = map[string][]Comment{}
-
-// TempCommentDB is a temporary in-memory database for comments.
-// The key is the listing ID, and the value is a slice of comments for that listing.
-// This is used for demonstration purposes and should be replaced with a proper database in production.
-
-func InitTempCommentDB() {
-	// Reference times
-	now := int64(1748366686) // today
-	oneDay := int64(86400)
-
-	// Helper to generate a new V7 UUID or panic if error
-	newV7 := func() uuid.UUID {
-		id, err := uuid.NewV7()
-		if err != nil {
-			panic(err)
-		}
-		return id
-	}
-
-	TempCommentDB["32707340"] = []Comment{
-		{
-			TargetListing: "32707340",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "oldtimer1",
-			CommentText:   "I remember when this house was first built!",
-			Timestamp:     now - 10*oneDay, // 10 days ago
-		},
-		{
-			TargetListing: "32707340",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "historybuff",
-			CommentText:   "This property has a lot of history.",
-			Timestamp:     now - 8*oneDay, // 8 days ago
-		},
-		{
-			TargetListing: "32707340",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "homebuyer123",
-			CommentText:   "Beautiful house! Love the backyard.",
-			Timestamp:     now - 6*oneDay, // 6 days ago
-		},
-		{
-			TargetListing: "32707340",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "nyhousefan",
-			CommentText:   "Is the basement finished?",
-			Timestamp:     now - 5*oneDay, // 5 days ago
-		},
-		{
-			TargetListing: "32707340",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "longislandmom",
-			CommentText:   "How old is the roof?",
-			Timestamp:     now - 4*oneDay, // 4 days ago
-		},
-		{
-			TargetListing: "32707340",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "commackdad",
-			CommentText:   "Nice curb appeal. Any recent renovations?",
-			Timestamp:     now - 3*oneDay, // 3 days ago
-		},
-		{
-			TargetListing: "32707340",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "firsttimebuyer",
-			CommentText:   "Is there an open house this weekend?",
-			Timestamp:     now - 2*oneDay, // 2 days ago
-		},
-		{
-			TargetListing: "32707340",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "petlover",
-			CommentText:   "Is the yard fenced in for dogs?",
-			Timestamp:     now - oneDay, // yesterday
-		},
-		{
-			TargetListing: "32707340",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "zillowfan",
-			CommentText:   "Price seems fair for the area.",
-			Timestamp:     now, // today
-		},
-		{
-			TargetListing: "32707340",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "investorjoe",
-			CommentText:   "What are the property taxes?",
-			Timestamp:     now, // today
-		},
-	}
-
-	TempCommentDB["32692760"] = []Comment{
-		{
-			TargetListing: "32692760",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "veteranresident",
-			CommentText:   "Moved here 15 years ago, still love it.",
-			Timestamp:     now - 12*oneDay, // 12 days ago
-		},
-		{
-			TargetListing: "32692760",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "oldschool",
-			CommentText:   "Neighborhood has changed a lot over the years.",
-			Timestamp:     now - 9*oneDay, // 9 days ago
-		},
-		{
-			TargetListing: "32692760",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "commacklocal",
-			CommentText:   "Great neighborhood, lived here for years.",
-			Timestamp:     now - 7*oneDay, // 7 days ago
-		},
-		{
-			TargetListing: "32692760",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "zillowuser",
-			CommentText:   "Does anyone know about the school district?",
-			Timestamp:     now - 5*oneDay, // 5 days ago
-		},
-		{
-			TargetListing: "32692760",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "familyman",
-			CommentText:   "Perfect for a growing family.",
-			Timestamp:     now - 3*oneDay, // 3 days ago
-		},
-		{
-			TargetListing: "32692760",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "househunter",
-			CommentText:   "How many bathrooms?",
-			Timestamp:     now - 2*oneDay, // 2 days ago
-		},
-		{
-			TargetListing: "32692760",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "retireeinny",
-			CommentText:   "Quiet street, close to parks.",
-			Timestamp:     now - oneDay, // yesterday
-		},
-		{
-			TargetListing: "32692760",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "commackmom",
-			CommentText:   "Is there a finished basement?",
-			Timestamp:     now, // today
-		},
-		{
-			TargetListing: "32692760",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "dogowner",
-			CommentText:   "Any restrictions on pets?",
-			Timestamp:     now, // today
-		},
-		{
-			TargetListing: "32692760",
-			CommentID:     newV7(),
-			UserIP:        "",
-			UserID:        "",
-			Username:      "nyrealestate",
-			CommentText:   "Looks recently updated!",
-			Timestamp:     now, // today
-		},
-	}
 }
