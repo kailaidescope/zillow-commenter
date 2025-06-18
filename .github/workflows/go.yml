@@ -37,7 +37,7 @@ jobs:
 
       - name: Run Blackbox API Tests
         env:
-          API_URL: ${{ secrets.API_IP }}
+          API_IP: ${{ secrets.API_IP }}
         run : |
           cd backend
           go test -v ./api/tests
