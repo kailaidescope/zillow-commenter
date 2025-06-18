@@ -45,6 +45,7 @@ package sqlc
 
 import (
 	"errors"
+	"regexp"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -73,12 +74,28 @@ func (postCommentParams PostCommentParams) Sanitize(sanitizationPolicy bluemonda
 
 	sanitizedCommentParams := postCommentParams
 
+	// Sanitize the string fields using the provided sanitization policy.
+
 	// CommentID is a pgtype.UUID (binary), and validated to ensure it is typed correctly, so no sanitization needed
 	sanitizedCommentParams.ListingID = sanitizationPolicy.Sanitize(sanitizedCommentParams.ListingID)
 	sanitizedCommentParams.UserIp = sanitizationPolicy.Sanitize(sanitizedCommentParams.UserIp)
 	sanitizedCommentParams.UserID = sanitizationPolicy.Sanitize(sanitizedCommentParams.UserID)
 	sanitizedCommentParams.Username = sanitizationPolicy.Sanitize(sanitizedCommentParams.Username)
 	sanitizedCommentParams.CommentText = sanitizationPolicy.Sanitize(sanitizedCommentParams.CommentText)
+
+	// Remove any unwanted content from Username and CommentText fields.
+	//
+	// Examples: emails, URLs, phone numbers
+
+	// Handle Username
+	sanitizedCommentParams.Username = removeLinks(sanitizedCommentParams.Username)
+	sanitizedCommentParams.Username = removeEmails(sanitizedCommentParams.Username)
+	sanitizedCommentParams.Username = removePhoneNumbers(sanitizedCommentParams.Username)
+
+	// Handle CommentText
+	sanitizedCommentParams.CommentText = removeLinks(sanitizedCommentParams.CommentText)
+	sanitizedCommentParams.CommentText = removeEmails(sanitizedCommentParams.CommentText)
+	sanitizedCommentParams.CommentText = removePhoneNumbers(sanitizedCommentParams.CommentText)
 
 	return sanitizedCommentParams
 }
@@ -202,6 +219,13 @@ func customUUIDValidator(uuid uuid.UUID) error {
 	return nil
 }
 
+// getUUIDTimestamp extracts the timestamp from a V7 UUID and converts it to a time.Time object.
+//
+// Input:
+//   - uuid: the UUID from which to extract the timestamp.
+//
+// Output:
+//   - time.Time: the timestamp extracted from the UUID, represented as a time.Time object
 func getUUIDTimestamp(uuid uuid.UUID) time.Time {
 	// Check the time component of the UUID.
 	uuidByteTimeComponent := uuid[0:6]
@@ -216,6 +240,72 @@ func getUUIDTimestamp(uuid uuid.UUID) time.Time {
 
 	return convertedTimestamp
 }
+
+// ================================================================================================================== //
+//                                                    Helpers                                                         //
+// ================================================================================================================== //
+
+// removeLinks is a helper function that removes URLs and links from a given string.
+// It uses a regular expression to match and remove most common URL formats (http, https,
+// and www).
+//
+// Input:
+//   - input: the string from which to remove links.
+//
+// Output:
+//   - string: the input string with links removed.
+func removeLinks(input string) string {
+	// Regex pattern to match URLs (http, https, www), including bare protocols
+	re := regexp.MustCompile(`(?i)(https?://(?:[\w\-._~:/?#\[\]@!$&'()*+,;=%]+)?|www\.[\w\-._~:/?#\[\]@!$&'()*+,;=%]+)([.,])?`)
+	return re.ReplaceAllStringFunc(input, func(match string) string {
+		// Preserve trailing punctuation if present
+		if len(match) > 0 {
+			last := match[len(match)-1]
+			if last == '.' || last == ',' {
+				return "[link removed]" + string(last)
+			}
+		}
+		return "[link removed]"
+	})
+}
+
+// removeEmails is a helper function that removes email addresses from a given string.
+// It uses a regular expression to match and remove most common email formats.
+//
+// Input:
+//   - input: the string from which to remove email addresses.
+//
+// Output:
+//   - string: the input string with email addresses removed.
+func removeEmails(input string) string {
+	// Regex pattern to match most email addresses
+	re := regexp.MustCompile(`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`)
+	return re.ReplaceAllString(input, "[email removed]")
+}
+
+// removePhoneNumbers is a helper function that removes phone numbers from a given string.
+// It uses a regular expression to match and remove common phone number formats (US-centric).
+//
+// Input:
+//   - input: the string from which to remove phone numbers.
+//
+// Output:
+//   - string: the input string with phone numbers removed.
+func removePhoneNumbers(input string) string {
+	// Regex pattern to match phone numbers with at least 8 digits (international and local)
+	re := regexp.MustCompile(`(?i)(\+?\d{1,3}[\s.-]?)?(\(?\d{1,4}\)?[\s.-]?)?(\d{1,4}[\s.-]?){1,4}\d{2,}`)
+	return re.ReplaceAllStringFunc(input, func(match string) string {
+		digits := regexp.MustCompile(`\d`).FindAllString(match, -1)
+		if len(digits) >= 8 {
+			return "[phone number removed]"
+		}
+		return match
+	})
+}
+
+// ================================================================================================================== //
+//                                                Old Code Below                                                      //
+// ================================================================================================================== //
 
 // EXAMPLE VALIDATOR USAGE
 
@@ -238,9 +328,11 @@ type Address struct {
 	Phone  string `validate:"required"`
 } */
 
-// ================================================================================================================== //
-//                                                Old Code Below                                                      //
-// ================================================================================================================== //
+//
+
+//
+
+// Example of how to use Transactions with SQLC
 
 /* // returns a queries struct that can be used to execute queries and a
 // function to close the connection linked to it

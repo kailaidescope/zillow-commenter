@@ -171,7 +171,117 @@ func TestSanitize_CommentText_XSS(t *testing.T) {
 	}
 }
 
-//
+// ===================================================================================================================== //
+//                                         Unit Tests for String Sanitizers                                             //
+// ===================================================================================================================== //
+
+func TestRemoveLinks(t *testing.T) {
+	replacementText := "[link removed]"
+
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{"Check this out: http://example.com", "Check this out: " + replacementText},
+		{"Visit https://secure.com for info", "Visit " + replacementText + " for info"},
+		{"Go to www.website.org now!", "Go to " + replacementText + " now!"},
+		{"No links here", "No links here"},
+		{"Multiple links: http://a.com and https://b.com", "Multiple links: " + replacementText + " and " + replacementText},
+		{"Text before http://foo.com and after", "Text before " + replacementText + " and after"},
+		{"https://abc.com?query=1", replacementText},
+		{"www.abc.com/page.html", replacementText},
+		{"Mixed: www.abc.com, http://def.com, and text", "Mixed: " + replacementText + ", " + replacementText + ", and text"},
+		{"ftp://notalink.com", "ftp://notalink.com"}, // Should not match
+		{"http://", replacementText},
+		{"www.", "www."},
+		{"https://sub.domain.com/path", replacementText},
+		{"Check www.site.com and http://site.com", "Check " + replacementText + " and " + replacementText},
+		{"Just text", "Just text"},
+		{"http://example.com/path?query=1#fragment", replacementText},
+		{"www.example.com:8080", replacementText},
+		{"http://example.com.", replacementText + "."},
+	}
+
+	for _, c := range cases {
+		result := removeLinks(c.input)
+		if result != c.expected {
+			t.Error("removeLinks failed:", "input='"+c.input+"'", "expected='"+c.expected+"'", "got='"+result+"'")
+		} else {
+			//t.Logf("removeLinks passed: input='%s', expected='%s', got='%s'", c.input, c.expected, result)
+		}
+	}
+}
+
+func TestRemoveEmails(t *testing.T) {
+	replacementText := "[email removed]"
+
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{"Contact me at test@example.com", "Contact me at " + replacementText},
+		{"Emails: foo@bar.com, bar@foo.org", "Emails: " + replacementText + ", " + replacementText},
+		{"No email here", "No email here"},
+		{"Edge case: a@b.c", "Edge case: a@b.c"}, // Should not match, as TLD is only 1 char
+		{"Send to john.doe@company.co.uk", "Send to " + replacementText},
+		{"Multiple: a@b.com b@c.net c@d.org", "Multiple: " + replacementText + " " + replacementText + " " + replacementText},
+		{"test@sub.domain.com", replacementText},
+		{"user+tag@domain.com", replacementText},
+		{"user_name@domain.io", replacementText},
+		{"user@domain", "user@domain"},     // Invalid, should not match
+		{"user@domain.c", "user@domain.c"}, // TLD too short
+		{"user@domain.comm", replacementText},
+		{"user@domain.com.", replacementText + "."},
+		{"user@domain.com!", replacementText + "!"},
+		{"user@domain.com?subject=hi", replacementText + "?subject=hi"},
+		{"user@domain.com;user2@domain.com", replacementText + ";" + replacementText},
+	}
+
+	for _, c := range cases {
+		result := removeEmails(c.input)
+		if result != c.expected {
+			t.Error("removeEmails failed:", "input='"+c.input+"'", "expected='"+c.expected+"'", "got='"+result+"'")
+		} else {
+			//t.Logf("removeEmails passed: input='%s', expected='%s', got='%s'", c.input, c.expected, result)
+		}
+	}
+}
+
+func TestRemovePhoneNumbers(t *testing.T) {
+	replacementText := "[phone number removed]"
+
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{"Call me at 555-123-4567", "Call me at " + replacementText},
+		{"My number is (555) 123-4567.", "My number is " + replacementText + "."},
+		{"+1 555 123 4567 is my office.", replacementText + " is my office."},
+		{"No phone here", "No phone here"},
+		{"Multiple: 555.123.4567 and 5551234567", "Multiple: " + replacementText + " and " + replacementText},
+		{"5551234567", replacementText},
+		{"(555)123-4567", replacementText},
+		{"555 123 4567", replacementText},
+		{"555.123.4567", replacementText},
+		{"+44 20 7946 0958", replacementText},
+		{"123-4567", "123-4567"}, // Not a full phone number, should not match
+		{"555-1234", "555-1234"}, // Not a full phone number, should not match
+		{"Phone: 555-123-4567, Alt: (555) 123-4567", "Phone: " + replacementText + ", Alt: " + replacementText},
+		{"5551234567 ext. 89", replacementText + " ext. 89"},
+		{"Text 555-123-4567 text", "Text " + replacementText + " text"},
+		{"(555)1234567", replacementText},
+		{"555123-4567", replacementText},
+	}
+
+	for _, c := range cases {
+		result := removePhoneNumbers(c.input)
+		if result != c.expected {
+			t.Error("removePhoneNumbers failed:", "input='"+c.input+"'", "expected='"+c.expected+"'", "got='"+result+"'")
+		} else {
+			//t.Logf("removePhoneNumbers passed: input='%s', expected='%s', got='%s'", c.input, c.expected, result)
+		}
+	}
+}
 
 // ===================================================================================================================== //
 //                                             Validation Test Helpers                                                   //
