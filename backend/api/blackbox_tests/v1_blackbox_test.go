@@ -1,5 +1,5 @@
-// Package tests contains unit and blackbox tests for the API.
-package tests
+// Package tests contains blackbox tests for the API.
+package blackbox_tests
 
 import (
 	"net/url"

@@ -40,7 +40,7 @@ jobs:
           API_IP: ${{ secrets.API_IP }}
         run : |
           cd backend
-          go test -v ./api/tests
+          go test -v ./api/blackbox_tests
       
       - name: Run Comment Struct Conversion Tests
         run: |
