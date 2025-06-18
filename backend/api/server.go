@@ -28,6 +28,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 
@@ -56,7 +57,19 @@ func (server *Server) GetPostgresPool() *pgxpool.Pool {
 	return server.pool
 }
 
-func GetNewServer() (*Server, error) {
+// DBOptions defines the allowed database connection options for the server.
+type DBOptions string
+
+const (
+	Production DBOptions = "production"
+	Test       DBOptions = "test"
+)
+
+// GetNewServer creates a new Server instance with all necessary dependencies initialized.
+//
+// Input:
+//   - dbOptions: A enum containing database connection options. Allowed values are ["production", "test"]
+func GetNewServer(dbOptions DBOptions) (*Server, error) {
 	//load env vars
 	godotenv.Load()
 
@@ -70,9 +83,23 @@ func GetNewServer() (*Server, error) {
 
 	// POSTGRES CONNECTION
 
-	pool, err := pgxpool.New(context.Background(), os.Getenv("CONNECTION_STRING"))
-	if err != nil {
-		return nil, err
+	// Deny invalid dbOptions
+	if dbOptions != Production && dbOptions != Test {
+		return nil, errors.New("invalid dbOptions provided, must be either 'production' or 'test'")
+	}
+
+	// Create a new connection pool to the PostgreSQL database based on the dbOptions
+	var pool *pgxpool.Pool
+	if dbOptions == Test {
+		pool, err = pgxpool.New(context.Background(), os.Getenv("POSTGRES_CONNECTION_STRING_TEST"))
+		if err != nil {
+			return nil, err
+		}
+	} else if dbOptions == Production {
+		pool, err = pgxpool.New(context.Background(), os.Getenv("CONNECTION_STRING"))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// ROUTER

@@ -27,10 +27,22 @@ jobs:
           go mod tidy
           echo "$(<go.mod)"
 
-      - name: Test Backend Input Validation
+      - name: Test Input Validation
         env:
           CONNECTION_STRING: ${{ secrets.POSTGRES_CONNECTION_STRING }}
           TOKEN_KEY: ${{ secrets.TOKEN_KEY }}
         run: |
           cd backend
           go test -v ./db/postgres/sqlc
+
+      - name: Run Blackbox API Tests
+        env:
+          API_URL: ${{ secrets.API_IP }}
+        run : |
+          cd backend
+          go test -v ./api/tests
+      
+      - name: Run Comment Struct Conversion Tests
+        run: |
+          cd backend
+          go test -v ./api/models

@@ -1,298 +1,17 @@
-// Package tests contains unit and blackbox tests for the API comment functionality.
-package tests
+package models
 
 import (
 	"errors"
 	"log"
 	"math/big"
-	"net/url"
-	"os"
-	"strings"
 	"testing"
 	"time"
 
-	"zillow-commenter.com/m/api/models"
 	"zillow-commenter.com/m/db/postgres/sqlc"
 
-	resty "github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/joho/godotenv"
 )
-
-// ===================================================================================================================== //
-//                                              Testing Suite Setup                                                      //
-// ===================================================================================================================== //
-
-// SetupAndTeardown initializes the API comment test environment and returns a cleanup function.
-//
-// It retrieves the API IP, then sends it to the testing suite.
-func SetupAndTeardown(tb testing.TB) (func(tb testing.TB), string) {
-	// Retrieve API IP from environment variables
-	os.Chdir("../..")
-	godotenv.Load()
-	apiIP := os.Getenv("API_IP")
-
-	// Give the server a moment to start
-	time.Sleep(500 * time.Millisecond)
-	return func(tb testing.TB) {
-		tb.Log("Server closing")
-	}, apiIP
-}
-
-func formatResponse(resp *resty.Response) string {
-	return resp.Status() + ", " + resp.String()
-}
-
-// ===================================================================================================================== //
-//                                               Sanitization Tests                                                      //
-// ===================================================================================================================== //
-
-func TestPostComment_ValidateListingID_InvalidID(t *testing.T) {
-	testingSuite, apiIP := SetupAndTeardown(t)
-	defer testingSuite(t)
-
-	v7, err := uuid.NewV7()
-	if err != nil {
-		t.Fatalf("Failed to generate V7 UUID: %v", err)
-	}
-
-	values := url.Values{}
-	values.Set("listing_id", "<b>123456</b>")
-	values.Set("user_id", v7.String())
-	values.Set("username", "TestUser")
-	values.Set("comment_text", "This is a comment.")
-
-	client := resty.New()
-	resp, err := client.R().
-		SetHeader("Content-Type", "application/x-www-form-urlencoded").
-		SetFormDataFromValues(values).
-		Post(apiIP + "/api/v1/comments")
-
-	if err != nil {
-		t.Fatalf("Request failed: %v", err)
-	}
-	if resp.StatusCode() != 400 {
-		t.Fatalf("Expected 400, got %d: %s", resp.StatusCode(), formatResponse(resp))
-	}
-	if resp.String() == "" || strings.Contains(resp.String(), "<b>") {
-		t.Errorf("Sanitization failed for ListingID: %s", resp.String())
-	}
-}
-
-func TestPostComment_SanitizesUserIp(t *testing.T) {
-	// UserIp is set by the server, so this test is best done by checking that XSS in IP is not possible.
-	// This is mostly covered by integration and unit tests.
-}
-
-func TestPostComment_SanitizesUserID(t *testing.T) {
-	testingSuite, apiIP := SetupAndTeardown(t)
-	defer testingSuite(t)
-
-	v7, err := uuid.NewV7()
-	if err != nil {
-		t.Fatalf("Failed to generate V7 UUID: %v", err)
-	}
-
-	userID := "<i>" + v7.String() + "</i>"
-	values := url.Values{}
-	values.Set("listing_id", "123456")
-	values.Set("user_id", userID)
-	values.Set("username", "TestUser")
-	values.Set("comment_text", "This is a comment.")
-
-	client := resty.New()
-	resp, err := client.R().
-		SetHeader("Content-Type", "application/x-www-form-urlencoded").
-		SetFormDataFromValues(values).
-		Post(apiIP + "/api/v1/comments")
-
-	if err != nil {
-		t.Fatalf("Request failed: %v", err)
-	}
-	if resp.StatusCode() == 400 {
-		t.Log("Correctly rejected invalid user_id (HTML tags not allowed):", formatResponse(resp))
-	} else {
-		t.Errorf("Expected 400 for unsanitized user_id, got %d: %s", resp.StatusCode(), formatResponse(resp))
-	}
-}
-
-func TestPostComment_SanitizesUsername(t *testing.T) {
-	testingSuite, apiIP := SetupAndTeardown(t)
-	defer testingSuite(t)
-
-	v7, err := uuid.NewV7()
-	if err != nil {
-		t.Fatalf("Failed to generate V7 UUID: %v", err)
-	}
-
-	values := url.Values{}
-	values.Set("listing_id", "123456")
-	values.Set("user_id", v7.String())
-	values.Set("username", "<b>TestUser</b>")
-	values.Set("comment_text", "This is a comment.")
-
-	client := resty.New()
-	resp, err := client.R().
-		SetHeader("Content-Type", "application/x-www-form-urlencoded").
-		SetFormDataFromValues(values).
-		Post(apiIP + "/api/v1/comments")
-
-	if err != nil {
-		t.Fatalf("Request failed: %v", err)
-	}
-	if resp.StatusCode() == 400 {
-		t.Log("Correctly rejected invalid username (HTML tags not allowed):", formatResponse(resp))
-	} else {
-		t.Errorf("Expected 400 for unsanitized username, got %d: %s", resp.StatusCode(), formatResponse(resp))
-	}
-}
-
-func TestPostComment_SanitizesCommentText(t *testing.T) {
-	testingSuite, apiIP := SetupAndTeardown(t)
-	defer testingSuite(t)
-
-	v7, err := uuid.NewV7()
-	if err != nil {
-		t.Fatalf("Failed to generate V7 UUID: %v", err)
-	}
-
-	values := url.Values{}
-	values.Set("listing_id", "123456")
-	values.Set("user_id", v7.String())
-	values.Set("username", "TestUser")
-	values.Set("comment_text", "<script>alert('xss')</script>This is a comment.")
-
-	client := resty.New()
-	resp, err := client.R().
-		SetHeader("Content-Type", "application/x-www-form-urlencoded").
-		SetFormDataFromValues(values).
-		Post(apiIP + "/api/v1/comments")
-
-	if err != nil {
-		t.Fatalf("Request failed: %v", err)
-	}
-	if resp.StatusCode() != 201 {
-		t.Fatalf("Expected 201, got %d: %s", resp.StatusCode(), formatResponse(resp))
-	}
-	if strings.Contains(resp.String(), "<script>") {
-		t.Errorf("Sanitization failed for CommentText: %s", resp.String())
-	}
-}
-
-// ===================================================================================================================== //
-//                                                Validation Tests                                                       //
-// ===================================================================================================================== //
-
-func TestPostComment_RejectsMissingListingID(t *testing.T) {
-	testingSuite, apiIP := SetupAndTeardown(t)
-	defer testingSuite(t)
-
-	v7, err := uuid.NewV7()
-	if err != nil {
-		t.Fatalf("Failed to generate V7 UUID: %v", err)
-	}
-
-	values := url.Values{}
-	values.Set("user_id", v7.String())
-	values.Set("username", "TestUser")
-	values.Set("comment_text", "This is a comment.")
-
-	client := resty.New()
-	resp, _ := client.R().
-		SetHeader("Content-Type", "application/x-www-form-urlencoded").
-		SetFormDataFromValues(values).
-		Post(apiIP + "/api/v1/comments")
-
-	if err != nil {
-		t.Fatalf("Request failed: %v", err)
-	}
-	if resp.StatusCode() != 400 {
-		t.Errorf("Expected 400 for missing listing_id, got %d: %s", resp.StatusCode(), formatResponse(resp))
-	}
-}
-
-func TestPostComment_RejectsInvalidUserID(t *testing.T) {
-	testingSuite, apiIP := SetupAndTeardown(t)
-	defer testingSuite(t)
-
-	values := url.Values{}
-	values.Set("listing_id", "123456")
-	values.Set("user_id", "not-a-uuid")
-	values.Set("username", "TestUser")
-	values.Set("comment_text", "This is a comment.")
-
-	client := resty.New()
-	resp, err := client.R().
-		SetHeader("Content-Type", "application/x-www-form-urlencoded").
-		SetFormDataFromValues(values).
-		Post(apiIP + "/api/v1/comments")
-
-	if err != nil {
-		t.Fatalf("Request failed: %v", err)
-	}
-	if resp.StatusCode() != 400 {
-		t.Errorf("Expected 400 for invalid user_id, got %d: %s", resp.StatusCode(), formatResponse(resp))
-	}
-}
-
-func TestPostComment_RejectsInvalidUsername(t *testing.T) {
-	testingSuite, apiIP := SetupAndTeardown(t)
-	defer testingSuite(t)
-
-	v7, err := uuid.NewV7()
-	if err != nil {
-		t.Fatalf("Failed to generate V7 UUID: %v", err)
-	}
-
-	values := url.Values{}
-	values.Set("listing_id", "123456")
-	values.Set("user_id", v7.String())
-	values.Set("username", "user!@#")
-	values.Set("comment_text", "This is a comment.")
-
-	client := resty.New()
-	resp, err := client.R().
-		SetHeader("Content-Type", "application/x-www-form-urlencoded").
-		SetFormDataFromValues(values).
-		Post(apiIP + "/api/v1/comments")
-
-	if err != nil {
-		t.Fatalf("Request failed: %v", err)
-	}
-	if resp.StatusCode() != 400 {
-		t.Errorf("Expected 400 for invalid username, got %d: %s", resp.StatusCode(), formatResponse(resp))
-	}
-}
-
-func TestPostComment_RejectsTooLongCommentText(t *testing.T) {
-	testingSuite, apiIP := SetupAndTeardown(t)
-	defer testingSuite(t)
-
-	v7, err := uuid.NewV7()
-	if err != nil {
-		t.Fatalf("Failed to generate V7 UUID: %v", err)
-	}
-
-	values := url.Values{}
-	values.Set("listing_id", "123456")
-	values.Set("user_id", v7.String())
-	values.Set("username", "TestUser")
-	values.Set("comment_text", makeStringOfLength(301))
-
-	client := resty.New()
-	resp, err := client.R().
-		SetHeader("Content-Type", "application/x-www-form-urlencoded").
-		SetFormDataFromValues(values).
-		Post(apiIP + "/api/v1/comments")
-
-	if err != nil {
-		t.Fatalf("Request failed: %v", err)
-	}
-	if resp.StatusCode() != 400 {
-		t.Errorf("Expected 400 for too long comment_text, got %d: %s", resp.StatusCode(), formatResponse(resp))
-	}
-}
 
 // ===================================================================================================================== //
 //                                                   Model Tests                                                         //
@@ -347,7 +66,7 @@ func defaultFakeRow() fakeRow {
 // Test for arbitrary row conversion to Comment.
 func TestGenericRowToComment_ValidFakeRow(t *testing.T) {
 	row := defaultFakeRow()
-	comment, err := models.GenericSQLCRowToComment(row)
+	comment, err := GenericSQLCRowToComment(row)
 	if err != nil {
 		t.Fatal("Expected no error, got ", err)
 	}
@@ -376,7 +95,7 @@ func defaultPostCommentRow() sqlc.PostCommentRow {
 // Test for converting PostCommentRow to Comment.
 func TestGenericRowToComment_ValidPostCommentRow(t *testing.T) {
 	row := defaultPostCommentRow()
-	comment, err := models.GenericSQLCRowToComment(row)
+	comment, err := GenericSQLCRowToComment(row)
 	if err != nil {
 		t.Fatal("Expected no error, got ", err)
 	}
@@ -405,7 +124,7 @@ func defaultGetCommentRow() sqlc.GetCommentsByListingIDRow {
 // Test for converting GetCommentsByListingIDRow to Comment.
 func TestGenericRowToComment_ValidGetCommentRow(t *testing.T) {
 	row := defaultGetCommentRow()
-	comment, err := models.GenericSQLCRowToComment(row)
+	comment, err := GenericSQLCRowToComment(row)
 	if err != nil {
 		t.Fatal("Expected no error, got ", err)
 	}
@@ -416,7 +135,7 @@ func TestGenericRowToComment_ValidGetCommentRow(t *testing.T) {
 }
 
 func TestGenericRowToComment_InvalidType(t *testing.T) {
-	_, err := models.GenericSQLCRowToComment(123)
+	_, err := GenericSQLCRowToComment(123)
 	if err == nil {
 		t.Error("Expected error for non-struct input")
 	}
@@ -426,7 +145,7 @@ func TestGenericRowToComment_MissingField(t *testing.T) {
 	type Incomplete struct {
 		ListingID string
 	}
-	_, err := models.GenericSQLCRowToComment(Incomplete{ListingID: "foo"})
+	_, err := GenericSQLCRowToComment(Incomplete{ListingID: "foo"})
 	if err == nil {
 		t.Error("Expected missing CommentID field error")
 	}
@@ -452,7 +171,7 @@ func TestGenericRowToComment_InvalidUUIDType(t *testing.T) {
 		CommentText: row.CommentText,
 		Extract:     row.Extract,
 	}
-	convertedRow, err := models.GenericSQLCRowToComment(badRow)
+	convertedRow, err := GenericSQLCRowToComment(badRow)
 	if err == nil {
 		t.Error("Expected error for CommentID field not of type pgtype.UUID:", convertedRow)
 	}
@@ -461,7 +180,7 @@ func TestGenericRowToComment_InvalidUUIDType(t *testing.T) {
 func TestGenericRowToComment_InvalidUUIDValue(t *testing.T) {
 	row := defaultFakeRow()
 	row.CommentID.Valid = false // Make it invalid
-	convertedRow, err := models.GenericSQLCRowToComment(row)
+	convertedRow, err := GenericSQLCRowToComment(row)
 	if err == nil {
 		t.Error("Expected error for invalid UUID value:", convertedRow)
 	}
@@ -470,7 +189,7 @@ func TestGenericRowToComment_InvalidUUIDValue(t *testing.T) {
 func TestGenericRowToComment_InvalidTimestamp(t *testing.T) {
 	row := defaultFakeRow()
 	row.Extract.Valid = false // Make timestamp invalid
-	_, err := models.GenericSQLCRowToComment(row)
+	_, err := GenericSQLCRowToComment(row)
 	if err == nil {
 		t.Error("Expected error for invalid timestamp")
 	}
@@ -534,7 +253,7 @@ func TestComment_ToPostCommentRow_TimestampConversion(t *testing.T) {
 }
 
 func TestComment_ToPostCommentRow_NilReceiver(t *testing.T) {
-	var comment *models.Comment
+	var comment *Comment
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("Expected panic when calling ToPostCommentRow on nil receiver")
@@ -562,7 +281,7 @@ func defaultCommentRow() sqlc.GetCommentsByListingIDRow {
 
 func TestCommentRowToComment_Valid(t *testing.T) {
 	row := defaultCommentRow()
-	comment, err := models.GetCommentRowToComment(row)
+	comment, err := GetCommentRowToComment(row)
 	if err != nil {
 		t.Fatal("Expected no error, got ", err)
 	}
@@ -574,7 +293,7 @@ func TestCommentRowToComment_Valid(t *testing.T) {
 func TestCommentRowToComment_InvalidUUID(t *testing.T) {
 	row := defaultCommentRow()
 	row.CommentID = pgtype.UUID{Bytes: [16]byte{}, Valid: false}
-	convertedRow, err := models.GetCommentRowToComment(row)
+	convertedRow, err := GetCommentRowToComment(row)
 	if err == nil {
 		t.Error("Expected error for invalid comment ID format:", convertedRow)
 	}
@@ -583,7 +302,7 @@ func TestCommentRowToComment_InvalidUUID(t *testing.T) {
 func TestCommentRowToComment_InvalidTimestamp(t *testing.T) {
 	row := defaultCommentRow()
 	row.Extract = pgtype.Numeric{Int: big.NewInt(1), Valid: false}
-	_, err := models.GetCommentRowToComment(row)
+	_, err := GetCommentRowToComment(row)
 	if err == nil {
 		t.Error("Expected error for invalid timestamp")
 	}
@@ -592,7 +311,7 @@ func TestCommentRowToComment_InvalidTimestamp(t *testing.T) {
 func TestCommentRowToComment_TimestampTooOld(t *testing.T) {
 	row := defaultCommentRow()
 	row.Extract = validPgtypeNumeric(1000)
-	_, err := models.GetCommentRowToComment(row)
+	_, err := GetCommentRowToComment(row)
 	if err == nil {
 		t.Error("Expected error for timestamp too old")
 	}
@@ -603,7 +322,7 @@ func TestCommentRowToComment_TimestampTooOld(t *testing.T) {
 func TestCommentRowsToComments_Valid(t *testing.T) {
 	row := defaultCommentRow()
 	rows := []sqlc.GetCommentsByListingIDRow{row}
-	comments, err := models.GetCommentRowsToComments(rows)
+	comments, err := GetCommentRowsToComments(rows)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -617,7 +336,7 @@ func TestCommentRowsToComments_InvalidRow(t *testing.T) {
 	badRow := defaultCommentRow()
 	badRow.Extract = pgtype.Numeric{Int: big.NewInt(1), Valid: false}
 	rows := []sqlc.GetCommentsByListingIDRow{row, badRow}
-	_, err := models.GetCommentRowsToComments(rows)
+	_, err := GetCommentRowsToComments(rows)
 	if err == nil {
 		t.Error("Expected error for invalid row in slice")
 	}
@@ -625,10 +344,10 @@ func TestCommentRowsToComments_InvalidRow(t *testing.T) {
 
 // --- CommentToCommentRow and CommentsToCommentRows tests ---
 
-// defaultComment returns a models.Comment with preset values for testing.
-func defaultComment() models.Comment {
+// defaultComment returns a Comment with preset values for testing.
+func defaultComment() Comment {
 	id, _ := uuid.NewV7()
-	return models.Comment{
+	return Comment{
 		TargetListing: "listing",
 		CommentID:     id,
 		UserIP:        "ip",
@@ -641,9 +360,9 @@ func defaultComment() models.Comment {
 
 func TestCommentToCommentRow_AndBack(t *testing.T) {
 	comment := defaultComment()
-	row := models.CommentToGetCommentRow(comment)
+	row := CommentToGetCommentRow(comment)
 	// Convert back to Comment
-	got, err := models.GetCommentRowToComment(*row)
+	got, err := GetCommentRowToComment(*row)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -653,7 +372,7 @@ func TestCommentToCommentRow_AndBack(t *testing.T) {
 }
 
 func TestCommentsToCommentRows_Empty(t *testing.T) {
-	rows := models.CommentsToGetCommentRows([]models.Comment{})
+	rows := CommentsToGetCommentRows([]Comment{})
 	if len(rows) != 0 {
 		t.Errorf("Expected 0 rows, got %d", len(rows))
 	}
@@ -671,24 +390,12 @@ func TestComment_ToResponse(t *testing.T) {
 
 func TestToResponseSlice(t *testing.T) {
 	comment := defaultComment()
-	comments := []models.Comment{comment}
-	resps := models.ToResponseSlice(comments)
+	comments := []Comment{comment}
+	resps := ToResponseSlice(comments)
 	if len(resps) != 1 {
 		t.Errorf("Expected 1 response, got %d", len(resps))
 	}
 	if resps[0].TargetListing != comment.TargetListing {
 		t.Errorf("Unexpected TargetListing: %s", resps[0].TargetListing)
 	}
-}
-
-// ===================================================================================================================== //
-//                                                     Helpers                                                           //
-// ===================================================================================================================== //
-
-func makeStringOfLength(n int) string {
-	s := ""
-	for i := 0; i < n; i++ {
-		s += "a"
-	}
-	return s
 }
