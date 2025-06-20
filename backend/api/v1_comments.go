@@ -176,8 +176,16 @@ func (server *Server) PostListingComment(c *gin.Context) {
 		return
 	} */
 
+	// Convert the sqlc.PostCommentRow struct to a models.Comment struct
+	postedComment, err := models.GenericSQLCRowToComment(postCommentRow)
+	if err != nil {
+		log.Println("Error converting new comment row to models.Comment struct for listing:", listingID, "-", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
 	// Log the successful creation of the new comment
-	c.JSON(http.StatusCreated, postCommentRow)
+	c.JSON(http.StatusCreated, postedComment.ToResponse())
 	log.Println("New comment successfully created for listing:", listingID, ":", postCommentRow)
 }
 
@@ -212,11 +220,6 @@ func (server Server) getComments(listingID string) ([]models.Comment, error) {
 		log.Println("Error converting comment rows to models. Comment structs for listing:", listingID, "-", err)
 		return nil, errors.Join(err, errors.New("failed to convert comment rows to models.Comment structs"))
 	}
-
-	// Return the comments to the client
-	/* slices.SortStableFunc(comments, func(a, b models.Comment) int {
-		return int(b.Timestamp) - int(a.Timestamp) // Sort by timestamp in descending order
-	}) */
 
 	return comments, nil
 }
