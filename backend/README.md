@@ -20,6 +20,10 @@ go build -tags lambda.norpc -o ./bin/x.x.x/bootstrap main.go
 zip ./bin/x.x.x/zillowette_lambda.zip ./bin/x.x.x/bootstrap
 ```
 
+Notes for fix:
+
+- Use `go env -w <NAME>=<VALUE>` ??
+
 ### Windows
 
 ```
