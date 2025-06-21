@@ -55,6 +55,7 @@ package sqlc
 
 import (
 	"errors"
+	"log"
 	"regexp"
 	"time"
 
@@ -62,7 +63,64 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/playwright-community/playwright-go"
 )
+
+// validateZillowListingExistence validates a Zillow listing ID by checking if it exist on zillow.com.
+// It uses playwright to open a headless browser and navigate to the Zillow listing page.
+//
+// Input:
+//   - listingId: the Zillow listing ID to validate, which should be a string of digits.
+//
+// Output:
+//   - bool: returns true if the listing ID is valid, false otherwise.
+//   - error: non-nil when an error occurs during the validation process, such as issues with Playwright or the browser.
+//
+// TODO: Make this function not blocked by Zillow's bot detection.
+func validateZillowListingExistence(listingId string) (bool, error) {
+	// Zillow listing IDs are numeric and are limited to 20 digits.
+	// This function assumes the listing ID has already been validated to be a number and within the correct range.
+
+	pw, err := playwright.Run()
+	if err != nil {
+		return false, errors.Join(errors.New("failed to start playwright"), err) // Return an error if Playwright could not be started.
+	}
+	defer pw.Stop()
+
+	// Launch a new browser instance using Playwright.
+	browser, err := pw.Chromium.Launch()
+	if err != nil {
+		return false, errors.Join(errors.New("failed to launch browser"), err) // Return an error if the browser could not be launched.
+	}
+	defer browser.Close()
+
+	// Create a new page in the browser.
+	page, err := browser.NewPage()
+	if err != nil {
+		return false, errors.Join(errors.New("failed to create new page"), err) // Return an error if the page could not be created.
+	}
+	defer page.Close()
+
+	// Open the Zillow listing page using the provided listing ID.
+	response, err := page.Goto("https://www.zillow.com/homedetails/" + listingId + "_zpid/")
+	if err != nil {
+		return false, errors.Join(errors.New("failed to open zillow listing page"), err) // Return an error if the page could not be loaded.
+	}
+
+	log.Println("Response for listing", listingId, ":", response)
+
+	// Check if the response status is 200 OK, indicating the page was successfully loaded.
+	if response.Status() != 200 {
+		if response.Status() == 403 {
+			log.Printf("listing %s is blocked by Zillow, possible bot detection, response status: %d", listingId, response.Status())
+		} else {
+			log.Printf("listing %s does not exist, response status: %d", listingId, response.Status())
+		}
+		return false, nil // Listing does not exist
+	}
+
+	return true, nil
+}
 
 // PostCommentParams.Sanitize sanitizes the fields of the PostCommentParams struct using the provided sanitization policy.
 // Should always be called before inserting the struct into the database to ensure that all fields are sanitized.

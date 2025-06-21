@@ -42,6 +42,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/playwright-community/playwright-go"
 )
 
 type Server struct {
@@ -70,7 +71,7 @@ const (
 // Input:
 //   - dbOptions: A enum containing database connection options. Allowed values are ["production", "test"]
 func GetNewServer(dbOptions DBOptions) (*Server, error) {
-	//load env vars
+	// Load env vars
 	godotenv.Load()
 
 	// TOKEN MAKER
@@ -131,6 +132,13 @@ func GetNewServer(dbOptions DBOptions) (*Server, error) {
 		SantizationPolicy: sanitizationPolicy,
 		maker:             tokenMaker,
 		pool:              pool,
+	}
+
+	// PLAYWRIGHT
+
+	err = playwright.Install()
+	if err != nil {
+		return nil, err
 	}
 
 	// =============================================================================================================== //

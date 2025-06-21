@@ -421,6 +421,31 @@ func TestPostCommentParamsValidation_CommentID_InvalidUUID(t *testing.T) {
 
 // --- LISTINGID ---
 
+func getRealZillowListingIDs() []string {
+	// This function returns a list of real Zillow Listing IDs.
+	return []string{"32698227", "32692760", "32692378"}
+}
+
+/* func TestZillowIdExistenceValidator_ListingID_Exists(t *testing.T) {
+	err := playwright.Install()
+	if err != nil {
+		t.Fatal("Failed to install Playwright: ", err)
+	}
+
+	for _, listingID := range getRealZillowListingIDs() {
+		exists, err := validateZillowListingExistence(listingID)
+		if err != nil {
+			t.Errorf("Failed to validate Zillow Listing ID '%s': %v", listingID, err)
+			continue
+		}
+		if !exists {
+			t.Errorf("Expected Zillow Listing ID '%s' to exist, but it does not", listingID)
+		} else {
+			t.Logf("Zillow Listing ID '%s' exists as expected", listingID)
+		}
+	}
+} */
+
 func TestPostCommentParamsValidation_ListingID_Required(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
