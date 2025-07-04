@@ -8,6 +8,7 @@ import (
 	"errors"
 	"math/big"
 	"reflect"
+	"strconv"
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
 
@@ -15,6 +16,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+// Comment represents a comment on a listing. Should NOT be sent to users.
+//
+// Notes:
+//   - Timestamp is in microseconds since the epoch, stored as an int64. Is valid until the 29th millenium. (All hail the God Emperor of Mankind!)
 type Comment struct {
 	TargetListing string    `json:"listing_id"`
 	CommentID     uuid.UUID `json:"comment_id"`
@@ -25,6 +30,10 @@ type Comment struct {
 	Timestamp     int64     `json:"timestamp"`
 }
 
+// ResponseComment represents a comment on a listing that can be safely returned to the user.
+//
+// Notes:
+//   - Timestamp is in microseconds since the epoch, stored as an int64. Is valid until the 29th millenium. (All hail the God Emperor of Mankind!)
 type ResponseComment struct {
 	TargetListing string    `json:"listing_id"`
 	CommentID     uuid.UUID `json:"comment_id"`
@@ -116,17 +125,16 @@ func GenericSQLCRowToComment(row interface{}) (*Comment, error) {
 		return nil, errors.New("missing Extract field")
 	}
 	extract := extractField.Interface().(pgtype.Numeric)
+	// Convert the timestamp from pgtype.Numeric to int64.
 	if !extract.Valid {
 		return nil, errors.New("timestamp is not valid")
 	}
-	int8Value, err := extract.Int64Value()
-	if err != nil {
-		return nil, errors.Join(err, errors.New("error converting timestamp to int8"))
+	// Ensure the timestamp is a valid int64.
+	timestamp := extract.Int.Int64()
+	// Check if the timestamp is valid (greater than a reference time [May 27th, 2025]).
+	if !extract.Valid || timestamp < 1748389238 {
+		return nil, errors.New("timestamp is not valid. should be greater than 1748389238, but is " + strconv.Itoa(int(timestamp)))
 	}
-	if !int8Value.Valid || int8Value.Int64 < 1748389238 {
-		return nil, errors.New("timestamp is not valid")
-	}
-	timestamp := int8Value.Int64
 
 	return &Comment{
 		TargetListing: listingID,
@@ -196,7 +204,7 @@ func GetCommentRowToComment(row sqlc.GetCommentsByListingIDRow) (*Comment, error
 	timestamp := row.Extract.Int.Int64()
 	// Check if the timestamp is valid (greater than a reference time [May 27th, 2025]).
 	if !row.Extract.Valid || timestamp < 1748389238 {
-		return nil, errors.New("timestamp is not valid")
+		return nil, errors.New("timestamp is not valid. should be greater than 1748389238, but is " + strconv.Itoa(int(timestamp)))
 	}
 
 	// Convert a database row to a Comment struct.

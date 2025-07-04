@@ -2,7 +2,9 @@
 package blackbox_tests
 
 import (
+	"bytes"
 	"encoding/json"
+	"math/rand"
 	"net/url"
 	"os"
 	"strings"
@@ -177,37 +179,20 @@ func TestPostComment_SanitizesCommentText(t *testing.T) {
 
 // Tests for removing links, emails, and phone numbers from comment text
 
-func TestRemoveLinks(t *testing.T) {
+func runSanitizationTestCases(t *testing.T, replacementText string, cases []struct {
+	input    string
+	expected string
+}) {
 	testingSuite, apiIP := SetupAndTeardown(t)
 	defer testingSuite(t)
-	replacementText := "[link removed]"
 
-	cases := []struct {
-		input    string
-		expected string
-	}{
-		{"Check this out: http://example.com", "Check this out: " + replacementText},
-		{"Visit https://secure.com for info", "Visit " + replacementText + " for info"},
-		{"Go to www.website.org now!", "Go to " + replacementText + " now!"},
-		{"No links here", "No links here"},
-		{"Multiple links: http://a.com and https://b.com", "Multiple links: " + replacementText + " and " + replacementText},
-		{"Text before http://foo.com and after", "Text before " + replacementText + " and after"},
-		{"https://abc.com?query=1", replacementText},
-		{"www.abc.com/page.html", replacementText},
-		{"Mixed: www.abc.com, http://def.com, and text", "Mixed: " + replacementText + ", " + replacementText + ", and text"},
-		{"ftp://notalink.com", "ftp://notalink.com"}, // Should not match
-		{"http://", replacementText},
-		{"www.", "www."},
-		{"https://sub.domain.com/path", replacementText},
-		{"Check www.site.com and http://site.com", "Check " + replacementText + " and " + replacementText},
-		{"Just text", "Just text"},
-		{"http://example.com/path?query=1#fragment", replacementText},
-		{"www.example.com:8080", replacementText},
-		{"http://example.com.", replacementText + "."},
-	}
+	t.Log("Running sanitization test cases for replacement:", replacementText)
 
-	// Send all test cases to API and check results
 	for _, c := range cases {
+		// Random sleep to avoid rate limiting
+		time.Sleep(time.Duration(1+rand.Intn(3)) * time.Second)
+
+		// Create a new comment to send
 		v7, err := uuid.NewV7()
 		if err != nil {
 			t.Fatalf("Failed to generate V7 UUID: %v", err)
@@ -219,6 +204,7 @@ func TestRemoveLinks(t *testing.T) {
 		values.Set("username", "TestUser")
 		values.Set("comment_text", c.input)
 
+		// Send comment to API
 		client := resty.New()
 		resp, err := client.R().
 			SetHeader("Content-Type", "application/x-www-form-urlencoded").
@@ -232,154 +218,98 @@ func TestRemoveLinks(t *testing.T) {
 			t.Errorf("Expected 201 for input '%s', got %d: %s", c.input, resp.StatusCode(), formatResponse(resp))
 		}
 
-		// Check if the comment text was sanitized correctly
-
-		// TODO: Unmarshal the response to check the comment text
-		if !strings.Contains(resp.String(), c.expected) {
-			t.Errorf("removeLinks failed for input '%s': expected '%s', got '%s'", c.input, c.expected, resp.String())
-		} else {
-			//t.Logf("removeLinks passed for input '%s': expected '%s', got '%s'", c.input, c.expected, resp.String())
-		}
-	}
-}
-
-func TestRemoveEmails(t *testing.T) {
-	testingSuite, apiIP := SetupAndTeardown(t)
-	defer testingSuite(t)
-	replacementText := "[email removed]"
-
-	cases := []struct {
-		input    string
-		expected string
-	}{
-		{"Contact me at test@example.com", "Contact me at " + replacementText},
-		{"Emails: foo@bar.com, bar@foo.org", "Emails: " + replacementText + ", " + replacementText},
-		{"No email here", "No email here"},
-		{"Edge case: a@b.c", "Edge case: a@b.c"}, // Should not match, as TLD is only 1 char
-		{"Send to john.doe@company.co.uk", "Send to " + replacementText},
-		{"Multiple: a@b.com b@c.net c@d.org", "Multiple: " + replacementText + " " + replacementText + " " + replacementText},
-		{"test@sub.domain.com", replacementText},
-		{"user+tag@domain.com", replacementText},
-		{"user_name@domain.io", replacementText},
-		{"user@domain", "user@domain"},     // Invalid, should not match
-		{"user@domain.c", "user@domain.c"}, // TLD too short
-		{"user@domain.comm", replacementText},
-		{"user@domain.com.", replacementText + "."},
-		{"user@domain.com!", replacementText + "!"},
-		{"user@domain.com?subject=hi", replacementText + "?subject=hi"},
-		{"user@domain.com;user2@domain.com", replacementText + ";" + replacementText},
-	}
-
-	// Send all test cases to API and check results
-	for _, c := range cases {
-		v7, err := uuid.NewV7()
-		if err != nil {
-			t.Fatalf("Failed to generate V7 UUID: %v", err)
-		}
-
-		values := url.Values{}
-		values.Set("listing_id", "1")
-		values.Set("user_id", v7.String())
-		values.Set("username", "TestUser")
-		values.Set("comment_text", c.input)
-
-		client := resty.New()
-		resp, err := client.R().
-			SetHeader("Content-Type", "application/x-www-form-urlencoded").
-			SetFormDataFromValues(values).
-			Post(apiIP + "/api/v1/comments")
-
-		if err != nil {
-			t.Fatalf("Request failed: %v", err)
-		}
-		if resp.StatusCode() != 201 {
-			t.Errorf("Expected 201 for input '%s', got %d: %s", c.input, resp.StatusCode(), formatResponse(resp))
-		}
-
-		// Check if the comment text was sanitized correctly
-
-		// TODO: Unmarshal the response to check the comment text
-		if !strings.Contains(resp.String(), c.expected) {
-			t.Errorf("removeLinks failed for input '%s': expected '%s', got '%s'", c.input, c.expected, resp.String())
-		} else {
-			//t.Logf("removeLinks passed for input '%s': expected '%s', got '%s'", c.input, c.expected, resp.String())
-		}
-	}
-}
-
-func TestRemovePhoneNumbers(t *testing.T) {
-	testingSuite, apiIP := SetupAndTeardown(t)
-	defer testingSuite(t)
-	replacementText := "[phone number removed]"
-
-	cases := []struct {
-		input    string
-		expected string
-	}{
-		{"Call me at 555-123-4567", "Call me at " + replacementText},
-		{"My number is (555) 123-4567.", "My number is " + replacementText + "."},
-		{"+1 555 123 4567 is my office.", replacementText + " is my office."},
-		{"No phone here", "No phone here"},
-		{"Multiple: 555.123.4567 and 5551234567", "Multiple: " + replacementText + " and " + replacementText},
-		{"5551234567", replacementText},
-		{"(555)123-4567", replacementText},
-		{"555 123 4567", replacementText},
-		{"555.123.4567", replacementText},
-		{"+44 20 7946 0958", replacementText},
-		{"123-4567", "123-4567"}, // Not a full phone number, should not match
-		{"555-1234", "555-1234"}, // Not a full phone number, should not match
-		{"Phone: 555-123-4567, Alt: (555) 123-4567", "Phone: " + replacementText + ", Alt: " + replacementText},
-		{"5551234567 ext. 89", replacementText + " ext. 89"},
-		{"Text 555-123-4567 text", "Text " + replacementText + " text"},
-		{"(555)1234567", replacementText},
-		{"555123-4567", replacementText},
-	}
-
-	// Send all test cases to API and check results
-	for _, c := range cases {
-		v7, err := uuid.NewV7()
-		if err != nil {
-			t.Fatalf("Failed to generate V7 UUID: %v", err)
-		}
-
-		values := url.Values{}
-		values.Set("listing_id", "1")
-		values.Set("user_id", v7.String())
-		values.Set("username", "TestUser")
-		values.Set("comment_text", c.input)
-
-		client := resty.New()
-		resp, err := client.R().
-			SetHeader("Content-Type", "application/x-www-form-urlencoded").
-			SetFormDataFromValues(values).
-			Post(apiIP + "/api/v1/comments")
-
-		if err != nil {
-			t.Fatalf("Request failed: %v", err)
-		}
-		if resp.StatusCode() != 201 {
-			t.Errorf("Expected 201 for input '%s', got %d: %s", c.input, resp.StatusCode(), formatResponse(resp))
-		}
-
-		// Check if the comment text was sanitized correctly
+		// Unmarshal the response
 
 		var responseComment models.ResponseComment
-		err = json.NewDecoder(resp.RawBody()).Decode(&responseComment) // Unmarshal the response to check the comment text
+		json.NewDecoder(bytes.NewReader(resp.Body())).Decode(&responseComment)
 		if err != nil {
 			t.Fatal("Failed to decode response: ", err)
 		}
 
-		if &responseComment == nil {
-			t.Fatal("ResponseComment is nil")
-		}
+		// Check if the comment text matches the expected sanitized output
 
-		// TODO: Unmarshal the response to check the comment text
 		if responseComment.CommentText != c.expected {
-			t.Errorf("removeLinks failed for input '%s': expected '%s', got '%s'", c.input, c.expected, responseComment.CommentText)
-		} else {
-			//t.Logf("removeLinks passed for input '%s': expected '%s', got '%s'", c.input, c.expected, resp.String())
+			t.Errorf("Sanitization failed for input '%s': expected '%s', got '%s'", c.input, c.expected, responseComment.CommentText)
 		}
 	}
+}
+
+func TestRemoveLinks(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{"Check this out: http://example.com", "Check this out: [link removed]"},
+		{"Visit https://secure.com for info", "Visit [link removed] for info"},
+		{"Go to www.website.org now!", "Go to [link removed] now!"},
+		{"No links here", "No links here"},
+		{"Multiple links: http://a.com and https://b.com", "Multiple links: [link removed] and [link removed]"},
+		{"Text before http://foo.com and after", "Text before [link removed] and after"},
+		{"https://abc.com?query=1", "[link removed]"},
+		{"www.abc.com/page.html", "[link removed]"},
+		{"Mixed: www.abc.com, http://def.com, and text", "Mixed: [link removed], [link removed], and text"},
+		{"ftp://notalink.com", "ftp://notalink.com"},
+		{"http://", "[link removed]"},
+		{"www.", "www."},
+		{"https://sub.domain.com/path", "[link removed]"},
+		{"Check www.site.com and http://site.com", "Check [link removed] and [link removed]"},
+		{"Just text", "Just text"},
+		{"http://example.com/path?query=1#fragment", "[link removed]"},
+		{"www.example.com:8080", "[link removed]"},
+		{"http://example.com.", "[link removed]."},
+	}
+	runSanitizationTestCases(t, "[link removed]", cases)
+}
+
+func TestRemoveEmails(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{"Contact me at test@example.com", "Contact me at [email removed]"},
+		{"Emails: foo@bar.com, bar@foo.org", "Emails: [email removed], [email removed]"},
+		{"No email here", "No email here"},
+		{"Edge case: a@b.c", "Edge case: a@b.c"},
+		{"Send to john.doe@company.co.uk", "Send to [email removed]"},
+		{"Multiple: a@b.com b@c.net c@d.org", "Multiple: [email removed] [email removed] [email removed]"},
+		{"test@sub.domain.com", "[email removed]"},
+		{"user+tag@domain.com", "[email removed]"},
+		{"user_name@domain.io", "[email removed]"},
+		{"user@domain", "user@domain"},
+		{"user@domain.c", "user@domain.c"},
+		{"user@domain.comm", "[email removed]"},
+		{"user@domain.com.", "[email removed]."},
+		{"user@domain.com!", "[email removed]!"},
+		{"user@domain.com?subject=hi", "[email removed]?subject=hi"},
+		{"user@domain.com;user2@domain.com", "[email removed];[email removed]"},
+	}
+	runSanitizationTestCases(t, "[email removed]", cases)
+}
+
+func TestRemovePhoneNumbers(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{"Call me at 555-123-4567", "Call me at [phone number removed]"},
+		{"My number is (555) 123-4567.", "My number is [phone number removed]."},
+		{"+1 555 123 4567 is my office.", "[phone number removed] is my office."},
+		{"No phone here", "No phone here"},
+		{"Multiple: 555.123.4567 and 5551234567", "Multiple: [phone number removed] and [phone number removed]"},
+		{"5551234567", "[phone number removed]"},
+		{"(555)123-4567", "[phone number removed]"},
+		{"555 123 4567", "[phone number removed]"},
+		{"555.123.4567", "[phone number removed]"},
+		{"+44 20 7946 0958", "[phone number removed]"},
+		{"123-4567", "123-4567"},
+		{"555-1234", "555-1234"},
+		{"Phone: 555-123-4567, Alt: (555) 123-4567", "Phone: [phone number removed], Alt: [phone number removed]"},
+		{"5551234567 ext. 89", "[phone number removed] ext. 89"},
+		{"Text 555-123-4567 text", "Text [phone number removed] text"},
+		{"(555)1234567", "[phone number removed]"},
+		{"555123-4567", "[phone number removed]"},
+	}
+	runSanitizationTestCases(t, "[phone number removed]", cases)
 }
 
 // ===================================================================================================================== //
