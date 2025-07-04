@@ -2,6 +2,7 @@
 package blackbox_tests
 
 import (
+	"encoding/json"
 	"net/url"
 	"os"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	resty "github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
+	"zillow-commenter.com/m/api/models"
 )
 
 // ===================================================================================================================== //
@@ -175,7 +177,7 @@ func TestPostComment_SanitizesCommentText(t *testing.T) {
 
 // Tests for removing links, emails, and phone numbers from comment text
 
-/* func TestRemoveLinks(t *testing.T) {
+func TestRemoveLinks(t *testing.T) {
 	testingSuite, apiIP := SetupAndTeardown(t)
 	defer testingSuite(t)
 	replacementText := "[link removed]"
@@ -361,14 +363,24 @@ func TestRemovePhoneNumbers(t *testing.T) {
 
 		// Check if the comment text was sanitized correctly
 
+		var responseComment *models.ResponseComment
+		err = json.NewDecoder(resp.RawBody()).Decode(responseComment) // Unmarshal the response to check the comment text
+		if err != nil {
+			t.Fatal("Failed to decode response: ", err)
+		}
+
+		if responseComment == nil {
+			t.Fatal("ResponseComment is nil")
+		}
+
 		// TODO: Unmarshal the response to check the comment text
-		if !strings.Contains(resp.String(), c.expected) {
-			t.Errorf("removeLinks failed for input '%s': expected '%s', got '%s'", c.input, c.expected, resp.String())
+		if (*responseComment).CommentText != c.expected {
+			t.Errorf("removeLinks failed for input '%s': expected '%s', got '%s'", c.input, c.expected, (*responseComment).CommentText)
 		} else {
 			//t.Logf("removeLinks passed for input '%s': expected '%s', got '%s'", c.input, c.expected, resp.String())
 		}
 	}
-} */
+}
 
 // ===================================================================================================================== //
 //                                                Validation Tests                                                       //
