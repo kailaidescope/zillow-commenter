@@ -19,7 +19,7 @@ func init() {
 	var err error
 	server, err = api.GetNewServer(api.Production)
 	if err != nil {
-		log.Fatal("Could not start the server")
+		log.Fatal("Could not start the server", err)
 	}
 }
 

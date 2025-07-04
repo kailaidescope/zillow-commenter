@@ -55,7 +55,6 @@ package sqlc
 
 import (
 	"errors"
-	"log"
 	"regexp"
 	"time"
 
@@ -63,7 +62,6 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"github.com/microcosm-cc/bluemonday"
-	"github.com/playwright-community/playwright-go"
 )
 
 // validateZillowListingExistence validates a Zillow listing ID by checking if it exist on zillow.com.
@@ -77,7 +75,7 @@ import (
 //   - error: non-nil when an error occurs during the validation process, such as issues with Playwright or the browser.
 //
 // TODO: Make this function not blocked by Zillow's bot detection.
-func validateZillowListingExistence(listingId string) (bool, error) {
+/* func validateZillowListingExistence(listingId string) (bool, error) {
 	// Zillow listing IDs are numeric and are limited to 20 digits.
 	// This function assumes the listing ID has already been validated to be a number and within the correct range.
 
@@ -120,7 +118,7 @@ func validateZillowListingExistence(listingId string) (bool, error) {
 	}
 
 	return true, nil
-}
+} */
 
 // PostCommentParams.Sanitize sanitizes the fields of the PostCommentParams struct using the provided sanitization policy.
 // Should always be called before inserting the struct into the database to ensure that all fields are sanitized.

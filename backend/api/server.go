@@ -40,9 +40,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 	"github.com/microcosm-cc/bluemonday"
-	"github.com/playwright-community/playwright-go"
 )
 
 type Server struct {
@@ -71,15 +69,18 @@ const (
 // Input:
 //   - dbOptions: A enum containing database connection options. Allowed values are ["production", "test"]
 func GetNewServer(dbOptions DBOptions) (*Server, error) {
-	// Load env vars
-	godotenv.Load()
+	// Load env vars (NOT NECESSARY FOR AWS LAMBDA)
+	/* err := godotenv.Load()
+	if err != nil {
+		return nil, errors.Join(errors.New("could not load environment variables"), err)
+	} */
 
 	// TOKEN MAKER
 
 	key := os.Getenv("TOKEN_KEY")
 	tokenMaker, err := token.NewPasetoMaker(key)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(errors.New("could not create token maker"), err)
 	}
 
 	// POSTGRES CONNECTION
@@ -94,12 +95,12 @@ func GetNewServer(dbOptions DBOptions) (*Server, error) {
 	if dbOptions == Test {
 		pool, err = pgxpool.New(context.Background(), os.Getenv("POSTGRES_CONNECTION_STRING_TEST"))
 		if err != nil {
-			return nil, err
+			return nil, errors.Join(errors.New("could not connect to the test database"), err)
 		}
 	} else if dbOptions == Production {
 		pool, err = pgxpool.New(context.Background(), os.Getenv("CONNECTION_STRING"))
 		if err != nil {
-			return nil, err
+			return nil, errors.Join(errors.New("could not connect to the production database"), err)
 		}
 	}
 
@@ -134,12 +135,12 @@ func GetNewServer(dbOptions DBOptions) (*Server, error) {
 		pool:              pool,
 	}
 
-	// PLAYWRIGHT
+	// PLAYWRIGHT (DOES NOT WORK ON AWS LAMBDA)
 
-	err = playwright.Install()
+	/* err = playwright.Install()
 	if err != nil {
-		return nil, err
-	}
+		return nil, errors.Join(errors.New("could not install playwright"), err)
+	} */
 
 	// =============================================================================================================== //
 	//                                             Mount routes below                                                  //
