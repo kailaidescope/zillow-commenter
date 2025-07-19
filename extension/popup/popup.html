@@ -35,7 +35,13 @@
                 <form id="comment-form">
                     <input type="text" id="username-input" name="username" maxlength="20" placeholder="Your name" required>
                     <textarea id="comment-input" name="comment" rows="3" maxlength="300" placeholder="Write your comment here..." required></textarea>
-                    <button type="submit" id="submit-comment">Submit</button>
+                    <div id="submit-button-row">
+                        <button type="submit" id="submit-comment">Submit</button>
+                        <div id="error-field">
+                            <h3 id="error-header">Error:</h3>
+                            <p id="error-message">A very long error message would look like this in some cases so it's important to handle.A very long error message would look like this in some cases so it's important to handle.A very long error message would look like this in some cases so it's important to handle.A very long error message would look like this in some cases so it's important to handle.</p>
+                        </div>
+                    </div>
                 </form>
             </div>
         </div>

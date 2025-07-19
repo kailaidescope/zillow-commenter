@@ -14,6 +14,7 @@
 
     /* Colors */
     --color-primary: #006aff;
+    --error-primary: #dc4554;
     --color-bg: #f8f9fa;
     --color-bg-alt: #fff;
     --color-bg-body: #f7f7f7;
@@ -33,6 +34,11 @@
     --color-submit-btn-hover: #0052cc;
     --color-white: #fff;
     --color-submit-btn-focus-shadow: rgba(0,106,255,0.08);
+}
+
+* {
+    margin: 0%;
+    padding: 0%;
 }
 
 /* Popup container styles */
@@ -98,6 +104,7 @@ body {
     min-width: 320px;
     min-height: 320px;
     background: var(--color-bg-body);
+    overflow: hidden;
 }
 .tabs {
     display: flex;
@@ -208,8 +215,29 @@ body {
     box-shadow: 0 0 0 2px var(--color-submit-btn-focus-shadow);
 }
 
+#submit-button-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: left;
+    gap: 4%;
+}
+
+#error-field {
+    display: flex;
+    flex-direction: column;
+    align-items: baseline;     
+    color: var(--error-primary);
+    max-height: 70px;
+    overflow: scroll;
+}
+
+#error-message {
+
+    color: var(--error-primary);
+}
+
 #submit-comment {
-    align-self: flex-end;
     padding: 8px 18px;
     background: var(--color-primary);
     color: var(--color-white);
