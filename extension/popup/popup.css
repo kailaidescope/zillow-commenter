@@ -34,6 +34,10 @@
     --color-submit-btn-hover: #0052cc;
     --color-white: #fff;
     --color-submit-btn-focus-shadow: rgba(0,106,255,0.08);
+
+    /* Sizes */
+    --max-height: 600px;
+    --max-width: 800px;
 }
 
 * {
@@ -42,6 +46,25 @@
 }
 
 /* Popup container styles */
+
+html {
+    display: flex;
+    flex-direction: row; /* BE CAREFUL. Changing this will make the extension so skinny. */
+    width: fit-content;
+    height: fit-content;
+    max-height: var(--max-height);
+    overflow: hidden;
+}
+
+body {
+    font-family: var(--font-family-base);
+    margin: 0;
+    min-width: 320px;
+    min-height: 320px;
+    background: var(--color-bg-body);
+    max-height: var(--max-height);
+    overflow: hidden;
+}
 
 .popup-container {
     width: 320px;
@@ -53,7 +76,8 @@
     font-size: var(--font-size-medium);
     font-weight: var(--font-weight-normal);
     min-height: 200px;
-    max-height: 500px;
+    max-height: var(--max-height);
+    overflow: hidden;
 }
 h1 {
     font-size: var(--font-size-large);
@@ -98,14 +122,6 @@ p {
 
 /* Tab styles */
 
-body {
-    font-family: var(--font-family-base);
-    margin: 0;
-    min-width: 320px;
-    min-height: 320px;
-    background: var(--color-bg-body);
-    overflow: hidden;
-}
 .tabs {
     display: flex;
     border-top: 1px solid var(--color-border);
@@ -229,11 +245,12 @@ body {
     align-items: baseline;     
     color: var(--error-primary);
     max-height: 70px;
-    overflow: scroll;
+    width: 100%;
+    overflow-y: scroll;
+    visibility: hidden;
 }
 
 #error-message {
-
     color: var(--error-primary);
 }
 

@@ -15,6 +15,9 @@ setUserId();
 // Populate comments when the popup is opened
 populateComments();
 
+// Hide error field
+hideErrorField()
+
 // Sets a unique user ID in localStorage if it doesn't exist
 //
 // Note: The localstorage persists between browser sessions, and incognito mode
@@ -268,13 +271,28 @@ async function handleCommentSubmission(event) {
 
     // Display and post the comment
     //displaySubmittedComment(commentObj)
-    postComment(commentObj, (result, error) => {
-        // Log the result or error
-        console.log('Comment posted'/*, result, error*/);
+    postComment(commentObj).then(
+        (response) => {
+            // Log the result or error
+            console.log('Comment posted'/*, response, response.body*/);
+            
 
-        // Display the updated comments list after posting
-        getCommentsByListingId(listingId, displayComments)
-    });
+            if (!response.ok) {
+                response.text()
+                    .then(responseBody => JSON.parse(responseBody))
+                    .then(unmarshalledBody => setErrorMessage(unmarshalledBody.error))
+                    .catch(error => setErrorMessage(error));
+            } else {
+                hideErrorField();
+            }
+
+            // Display the updated comments list after posting
+            getCommentsByListingId(listingId, displayComments)
+    })
+
+    /* .then(response => response.text())
+        .then(result => callbackFunc(result))
+        .catch(error => callbackFunc(null, error)); */
 
     // Clear the form fields after submission
     document.getElementById('comment-input').value = '';
@@ -384,10 +402,7 @@ async function postComment(commentObj, callbackFunc) {
     };
 
     // Send POST request to the API
-    fetch(`${API_URL}/comments`, requestOptions)
-        .then(response => response.text())
-        .then(result => callbackFunc(result))
-        .catch(error => callbackFunc(null, error));
+    return fetch(`${API_URL}/comments`, requestOptions)
 }
 
 // getNewUserId retrieves a new V7 (Time-based) UUID from the API
@@ -415,4 +430,21 @@ function saveUsername(username) {
 // Retrieves the saved username from localStorage
 function getSavedUsername() {
     return window.localStorage.getItem('zillow_commenter_username') || '';
+}
+
+// Sets error message
+function setErrorMessage(errorText) {
+    const errorField = document.getElementById("error-field");
+    const errorMessage = document.getElementById("error-message");
+
+    errorMessage.innerHTML = errorText;
+
+    errorField.style.visibility = "visible";
+}
+
+// Hide error message 
+function hideErrorField() {
+    const errorField = document.getElementById("error-field");
+
+    errorField.style.visibility = "hidden";
 }
