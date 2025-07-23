@@ -55,6 +55,7 @@ package sqlc
 
 import (
 	"errors"
+	"log"
 	"regexp"
 	"time"
 
@@ -234,7 +235,7 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 
 	// USERNAME
 
-	usernameValidation := "required,alphanum,min=3,max=25"
+	usernameValidation := "required,username,min=3,max=25"
 	err = sl.Validator().Var(postCommentParams.Username, usernameValidation)
 	if err != nil {
 		sl.ReportError(postCommentParams.Username, "Username", "Username", usernameValidation, "")
@@ -247,6 +248,38 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 	if err != nil {
 		sl.ReportError(postCommentParams.CommentText, "CommentText", "CommentText", commentTextValidation, "")
 	}
+}
+
+// RegisterValidators is used to initialize the custom validation functions in sqlc.
+// Should be called by the server upon launch.
+//
+// Input:
+//   - validate: a validator singleton to register the custom validations on
+func RegisterValidators(validate *validator.Validate) {
+	// Registers PostCommentParams struct validator
+	validate.RegisterStructValidation(PostCommentParamsValidation, PostCommentParams{})
+
+	// Registers username validator
+	validate.RegisterValidation("username", customUsernameValidator)
+}
+
+// customUsernameValidator validates that text includes only alphanumeric symbols or
+// ' ', '.', ',', '_', and "-".
+//
+// Input:
+//   - fl: a representation of the username field to be checked
+//
+// Output:
+//   - bool: true if and only if the username matches the regex
+func customUsernameValidator(fl validator.FieldLevel) bool {
+	expression := `^[A-Za-z0-9 ,._\-]+$`
+	re, err := regexp.Compile(expression)
+	if err != nil {
+		log.Println("Error encountered when trying to compile the following regex:", expression, ".\nError:", err)
+		return false
+	}
+
+	return re.MatchString(fl.Field().String())
 }
 
 // customUUIDValidator runs extra checks to ensure that a V7 UUID is valid.

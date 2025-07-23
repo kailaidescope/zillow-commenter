@@ -16,6 +16,10 @@ import (
 	"zillow-commenter.com/m/api/models"
 )
 
+// =================================================================================================================== //
+//                                               Primary Functions                                                     //
+// =================================================================================================================== //
+
 // GetListingComments returns a list of comments for a specific zilllow listing.
 //
 // GET api/v1/comments/:listing_id
@@ -34,7 +38,7 @@ func (server *Server) GetListingComments(c *gin.Context) {
 	userIP, err := getUserIP(c)
 	if err != nil {
 		log.Println("Error getting user IP:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
 		return
 	}
 	timestamp := time.Now().Unix()
@@ -47,7 +51,7 @@ func (server *Server) GetListingComments(c *gin.Context) {
 		log.Println("Error getting comments from db", listingID)
 
 		// Tell the client that something went wrong
-		c.JSON(500, gin.H{"error": "Internal server error"})
+		c.JSON(500, getReturnableErrorMessage("Internal server error"))
 		return
 	}
 
@@ -80,7 +84,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	userIP, err := getUserIP(c)
 	if err != nil {
 		log.Println("Error getting user IP:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
 		return
 	}
 	timestamp := time.Now().Unix()
@@ -99,7 +103,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	commentID, err := uuid.NewV7()
 	if err != nil {
 		log.Println("Error generating new comment UUID:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
 		return
 	}
 
@@ -121,7 +125,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	// Perform first round validation on new comment parameters
 	if err := server.Validator.Struct(newComment); err != nil {
 		log.Println("Failed first round of validation for new comment:", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input data"})
+		c.JSON(http.StatusBadRequest, getReturnableErrorMessage("Invalid input data"))
 		return
 	}
 
@@ -133,7 +137,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	// Ensures that the comment parameters are safe and valid after sanitization
 	if err := server.Validator.Struct(newComment); err != nil {
 		log.Println("Failed second round of validation for new comment:", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input data"})
+		c.JSON(http.StatusBadRequest, getReturnableErrorMessage("Invalid input data"))
 		return
 	}
 
@@ -141,7 +145,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	postgresConnection, err := server.GetPostgresPool().Acquire(context.TODO())
 	if err != nil {
 		log.Println("Error acquiring Postgres connection:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
 		return
 	}
 	defer postgresConnection.Release()
@@ -151,7 +155,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	postCommentRow, err := postgresQueryClient.PostComment(context.TODO(), newComment)
 	if err != nil {
 		log.Println("Error inserting new comment into database for listing:", listingID, "-", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
 		return
 	}
 
@@ -159,7 +163,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	newCommentFromDB, err := models.GenericRowToComment(postCommentRow)
 	if err != nil {
 		log.Println("Error converting new comment row to models.Comment struct for listing:", listingID, "-", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
 		return
 	}
 
@@ -172,7 +176,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	/* returnedComment, err := models.CommentRowToComment(postCommentRow)
 	if err != nil {
 		log.Println("Error converting new comment row to models.Comment struct for listing:", listingID, "-", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
 		return
 	} */
 
@@ -180,7 +184,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	postedComment, err := models.GenericSQLCRowToComment(postCommentRow)
 	if err != nil {
 		log.Println("Error converting new comment row to models.Comment struct for listing:", listingID, "-", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
 		return
 	}
 
@@ -188,6 +192,43 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	c.JSON(http.StatusCreated, postedComment.ToResponse())
 	log.Println("New comment successfully created for listing:", listingID, ":", postCommentRow)
 }
+
+// GenerateUserID generates a new user ID for the client.
+//
+// GET api/v1/user/user_id
+//
+// Output:
+//   - 200: A JSON object containing the generated user ID. ID is a V7 (Time) UUID.
+func (server *Server) GenerateUserID(c *gin.Context) {
+	// Get information from the request context
+	userIP, err := getUserIP(c)
+	if err != nil {
+		log.Println("Error getting user IP:", err)
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
+		return
+	}
+	timestamp := time.Now().Unix()
+	log.Println("GenerateUserID called from IP:", userIP, "at timestamp:", timestamp)
+
+	// Generate a new UUID for the user using a timestamp-based version (v7) to ensure uniqueness
+	userID, err := uuid.NewV7()
+	if err != nil {
+		log.Println("Error generating new user UUID:", err)
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
+		return
+	}
+
+	// Log the generated user ID
+	log.Println("Generated new user ID:", userID)
+
+	// Return the user ID as a JSON response
+	c.JSON(http.StatusOK, gin.H{"user_id": userID.String()})
+	log.Println("Successfully returned user ID:", userID.String())
+}
+
+// ================================================================================================================== //
+//                                               Helper Functions                                                     //
+// ================================================================================================================== //
 
 // Helper function to get comments for a specific listing.
 //
@@ -224,39 +265,6 @@ func (server Server) getComments(listingID string) ([]models.Comment, error) {
 	return comments, nil
 }
 
-// GenerateUserID generates a new user ID for the client.
-//
-// GET api/v1/user/user_id
-//
-// Output:
-//   - 200: A JSON object containing the generated user ID. ID is a V7 (Time) UUID.
-func (server *Server) GenerateUserID(c *gin.Context) {
-	// Get information from the request context
-	userIP, err := getUserIP(c)
-	if err != nil {
-		log.Println("Error getting user IP:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
-	}
-	timestamp := time.Now().Unix()
-	log.Println("GenerateUserID called from IP:", userIP, "at timestamp:", timestamp)
-
-	// Generate a new UUID for the user using a timestamp-based version (v7) to ensure uniqueness
-	userID, err := uuid.NewV7()
-	if err != nil {
-		log.Println("Error generating new user UUID:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
-	}
-
-	// Log the generated user ID
-	log.Println("Generated new user ID:", userID)
-
-	// Return the user ID as a JSON response
-	c.JSON(http.StatusOK, gin.H{"user_id": userID.String()})
-	log.Println("Successfully returned user ID:", userID.String())
-}
-
 // getUserIP retrieves the user's IP address from the API Gateway context.
 //
 // Input:
@@ -276,6 +284,14 @@ func getUserIP(c *gin.Context) (string, error) {
 
 	userIP := apiGatewayContext.Identity.SourceIP
 	return userIP, nil
+}
+
+// getReturnableErrorMessage should be used to template all error messages returned from the API
+//
+// It standardizes the format of error messages to a map: {"error": <error_message>}, which is
+// readable by the frontend.
+func getReturnableErrorMessage(errorMessage string) gin.H {
+	return gin.H{"error": errorMessage}
 }
 
 // debugAPIGatewayContext logs the API Gateway context information from the gin context.

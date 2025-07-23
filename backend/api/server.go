@@ -92,16 +92,19 @@ func GetNewServer(dbOptions DBOptions) (*Server, error) {
 
 	// Create a new connection pool to the PostgreSQL database based on the dbOptions
 	var pool *pgxpool.Pool
-	if dbOptions == Test {
+	switch dbOptions {
+	case Test:
 		pool, err = pgxpool.New(context.Background(), os.Getenv("POSTGRES_CONNECTION_STRING_TEST"))
 		if err != nil {
 			return nil, errors.Join(errors.New("could not connect to the test database"), err)
 		}
-	} else if dbOptions == Production {
+	case Production:
 		pool, err = pgxpool.New(context.Background(), os.Getenv("CONNECTION_STRING"))
 		if err != nil {
 			return nil, errors.Join(errors.New("could not connect to the production database"), err)
 		}
+	default:
+		return nil, errors.New("cannot start server with option that is not 'Production' or 'Test'")
 	}
 
 	// ROUTER
@@ -116,8 +119,8 @@ func GetNewServer(dbOptions DBOptions) (*Server, error) {
 	// Set up the validator with required struct validation enabled
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
-	// Register custom validation for structs
-	validate.RegisterStructValidation(sqlc.PostCommentParamsValidation, sqlc.PostCommentParams{})
+	// Register custom validations for structs and fields
+	sqlc.RegisterValidators(validate)
 
 	// SANITIZER
 

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"log"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -51,8 +52,8 @@ func ValidationSetupAndTeardown(tb testing.TB) (func(tb testing.TB), *validator.
 	// Create a validator singleton
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
-	// Register the PostCommentParamsValidation function for validating PostCommentParams structs
-	validate.RegisterStructValidation(PostCommentParamsValidation, PostCommentParams{})
+	// Register custom validations for structs and fields
+	RegisterValidators(validate)
 
 	return func(tb testing.TB) {
 		tb.Log("Teardown complete")
@@ -878,12 +879,48 @@ func TestPostCommentParamsValidation_Username_Alphanum(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
+	// Test non-alphanumeric string
 	params := validPostCommentParams(ValidParamsIPv4)
 	params.Username = "user!@#" // Not alphanum
 
 	err := validate.Struct(params)
 	if err == nil {
 		t.Error("Expected error for non-alphanum Username, got nil")
+	}
+
+	// Test random alphanumeric string
+	params.Username = ""
+
+	// Get random alphas
+	for i := 0; i < 15; i++ {
+		charNum := rand.Intn(26)
+		shifter := 65 + rand.Intn(2)*32 // 65 is ascii character 'A', 97 is ascii character 'a'
+		params.Username += string(rune(charNum + shifter))
+	}
+
+	// Get random numbers
+	for i := 0; i < 10; i++ {
+		charNum := rand.Intn(10)
+		shifter := 48 // 48 is ascii character '0'
+		params.Username += string(rune(charNum + shifter))
+	}
+
+	err = validate.Struct(params)
+	if err != nil {
+		t.Error("Expected no error on alphanumeric username:", params.Username, ", but instead got:", err)
+	}
+}
+
+func TestPostCommentParamsValidation_Username_OtherChars(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	params.Username = " .,_-"
+
+	err := validate.Struct(params)
+	if err != nil {
+		t.Error("Expected no error for username: ", params.Username, ", of miscellaneous characters, but instead got:", err)
 	}
 }
 
