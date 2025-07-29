@@ -924,6 +924,101 @@ func TestPostCommentParamsValidation_Username_OtherChars(t *testing.T) {
 	}
 }
 
+func TestPostCommentParamsValidation_Username_Characters(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	allowedChars := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,_-")
+	for i := 0; i < 50; i++ {
+		params := validPostCommentParams(ValidParamsIPv4)
+		randomUsername := make([]rune, 25)
+		for j := 0; j < 25; j++ {
+			idx := rand.Intn(len(allowedChars))
+			randomUsername[j] = allowedChars[idx]
+		}
+		params.Username = string(randomUsername)
+
+		err := validate.Struct(params)
+		if err != nil {
+			t.Errorf("[%d] Expected no error for randomized allowed username '%s', but got: %v", i, params.Username, err)
+		}
+	}
+}
+
+// getInvalidUsernameCharacter returns a random ASCII rune not in allowedChars
+func getInvalidUsernameCharacter(allowedChars map[rune]struct{}) rune {
+	for {
+		candidate := rune(rand.Intn(127)) // ASCII 0-126
+		if _, ok := allowedChars[candidate]; !ok {
+			return candidate
+		}
+	}
+}
+
+func TestPostCommentParamsValidation_Username_InvalidCharacters(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	allowedCharsSlice := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,_-")
+	allowedChars := make(map[rune]struct{}, len(allowedCharsSlice))
+	for _, c := range allowedCharsSlice {
+		allowedChars[c] = struct{}{}
+	}
+
+	for i := 0; i < 50; i++ {
+		params := validPostCommentParams(ValidParamsIPv4)
+		randomUsername := make([]rune, 25)
+		for j := 0; j < 25; j++ {
+			idx := rand.Intn(len(allowedCharsSlice))
+			randomUsername[j] = allowedCharsSlice[idx]
+		}
+		// Insert an invalid character at a random position
+		invalidIdx := rand.Intn(25)
+		invalidChar := getInvalidUsernameCharacter(allowedChars)
+		randomUsername[invalidIdx] = invalidChar
+		params.Username = string(randomUsername)
+
+		err := validate.Struct(params)
+		if err == nil {
+			t.Errorf("[%d] Expected error for username with invalid character '%s' (ASCII %d) at pos %d: '%s', but got nil", i, string(invalidChar), invalidChar, invalidIdx, params.Username)
+		}
+	}
+}
+
+// Test every invalid ASCII character individually in the username
+func TestPostCommentParamsValidation_Username_EachInvalidCharacter(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	allowedCharsSlice := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,_-")
+	allowedChars := make(map[rune]struct{}, len(allowedCharsSlice))
+	for _, c := range allowedCharsSlice {
+		allowedChars[c] = struct{}{}
+	}
+
+	for ascii := 0; ascii < 127; ascii++ {
+		candidate := rune(ascii)
+		if _, ok := allowedChars[candidate]; ok {
+			continue // skip allowed chars
+		}
+		params := validPostCommentParams(ValidParamsIPv4)
+		randomUsername := make([]rune, 25)
+		for j := 0; j < 25; j++ {
+			idx := rand.Intn(len(allowedCharsSlice))
+			randomUsername[j] = allowedCharsSlice[idx]
+		}
+		// Insert the invalid character at a random position
+		invalidIdx := rand.Intn(25)
+		randomUsername[invalidIdx] = candidate
+		params.Username = string(randomUsername)
+
+		err := validate.Struct(params)
+		if err == nil {
+			t.Errorf("Expected error for username with invalid character '%s' (ASCII %d) at pos %d: '%s', but got nil", string(candidate), ascii, invalidIdx, params.Username)
+		}
+	}
+}
+
 func TestPostCommentParamsValidation_Username_MinLength(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
