@@ -3,7 +3,7 @@ const API_PORT = "3000";
 const API_URL = `https://${API_ADDRESS}:${API_PORT}/api/v1`; */
 
 const API_ADDRESS = window.localStorage.getItem('zillow_commenter_api_address') || "";
-const API_URL = `${API_ADDRESS}/api/v1`;
+const API_URL = setApiUrl(API_ADDRESS);
 
 
 // Log the current user ID from localStorage
@@ -483,3 +483,52 @@ document.getElementById('comment-input').addEventListener('keyup', function vali
         }
     }
 });
+
+// Modal popup logic for zillowette icon
+document.addEventListener('DOMContentLoaded', function() {
+    const icon = document.getElementById('zillowette-icon');
+    const modal = document.getElementById('icon-modal');
+    const input = document.getElementById('icon-modal-input');
+    const submitBtn = document.getElementById('icon-modal-submit');
+    const cancelBtn = document.getElementById('icon-modal-cancel');
+
+    if (!icon || !modal || !input || !submitBtn || !cancelBtn) return;
+
+    modal.style.display = 'none';
+
+    icon.addEventListener('click', function() {
+        if (modal.style.display != 'none') {
+            modal.style.display = 'none';
+        } else {
+            modal.style.display = 'flex';
+        }
+        input.value = '';
+        input.focus();
+    });
+
+    cancelBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+
+    submitBtn.addEventListener('click', function() {
+        const value = input.value.trim();
+        if (value !== '') {
+            // Set API address to input value
+            console.log("API URL set to:",setApiUrl(value));
+        }
+        modal.style.display = 'none';
+    });
+
+    // Optional: submit on Enter key
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            submitBtn.click();
+        }
+    });
+});
+
+function setApiUrl(apiAddress) {
+    API_ADDRESS = apiAddress;
+    API_URL = `${API_ADDRESS}/api/v1`;
+    return API_URL
+}
