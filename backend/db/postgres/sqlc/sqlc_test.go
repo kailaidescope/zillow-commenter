@@ -715,7 +715,7 @@ func TestUUIDTimeGen_10Days(t *testing.T) {
 	//log.Println(timeBuffer.Bytes()[2:8], fabricatedUUID[0:6])
 
 	// Check the timestampe bytes against the UUID's bytes
-	if bytes.Compare(timeBuffer.Bytes()[2:8], fabricatedUUID[0:6]) != 0 {
+	if !bytes.Equal(timeBuffer.Bytes()[2:8], fabricatedUUID[0:6]) {
 		t.Fatal("Fabricated UUID timestamp does not match intended timestamp")
 	}
 
@@ -750,7 +750,7 @@ func TestUUIDTimeGen_100Days(t *testing.T) {
 	//log.Println(timeBuffer.Bytes()[2:8], fabricatedUUID[0:6])
 
 	// Check the timestampe bytes against the UUID's bytes
-	if bytes.Compare(timeBuffer.Bytes()[2:8], fabricatedUUID[0:6]) != 0 {
+	if !bytes.Equal(timeBuffer.Bytes()[2:8], fabricatedUUID[0:6]) {
 		t.Fatal("Fabricated UUID timestamp does not match intended timestamp")
 	}
 
