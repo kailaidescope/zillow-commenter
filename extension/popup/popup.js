@@ -448,3 +448,38 @@ function hideErrorField() {
 
     errorField.style.visibility = "hidden";
 }
+
+
+// Add event listener for comment input validation (vanilla JS, multi-line support)
+document.getElementById('comment-input').addEventListener('keyup', function validateCommentInput() {
+    const errorMsg = "Must be letters, numbers, or punction.";
+    const textarea = this;
+    const pattern = new RegExp(textarea.getAttribute('pattern'));
+    let hasError = false;
+    // Validate each line separately
+    const lines = textarea.value.split("\n");
+    let index = 0;
+    for (let line of lines) {
+        index++;
+        if (line == "") {
+            continue;
+        }
+        if (!pattern.test(line)) {
+            hasError = true;
+            console.log("Line #",index,":'"+line+"' has an error.");
+            break;
+        }
+    }
+    //console.log("Comment field is valid:",!hasError);
+    if (typeof textarea.setCustomValidity === 'function') {
+        textarea.setCustomValidity(hasError ? errorMsg : '');
+    } else {
+        textarea.classList.toggle('error', hasError);
+        textarea.classList.toggle('ok', !hasError);
+        if (hasError) {
+            textarea.title = errorMsg;
+        } else {
+            textarea.removeAttribute('title');
+        }
+    }
+});
