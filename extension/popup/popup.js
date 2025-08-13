@@ -400,6 +400,8 @@ async function postComment(commentObj, callbackFunc) {
     saveUsername(commentObj.username);
 
     // Collect comment data
+    let listingTitle = await getListingTitle();
+
     let listingId = await getListingID();
     if (!listingId) {
         console.error("No valid listing ID found in the current URL.");
@@ -411,6 +413,7 @@ async function postComment(commentObj, callbackFunc) {
     myHeaders.append("Content-Type", "application/x-www-form-urlencoded");
 
     var urlencoded = new URLSearchParams();
+    urlencoded.append("listing_title", listingTitle);
     urlencoded.append("listing_id", listingId);
     urlencoded.append("user_id", getLocalUserId());
     urlencoded.append("username", commentObj.username);
@@ -568,23 +571,30 @@ document.addEventListener("keyup", (event) => {
 });
 
 // Gets listing title from the injected content script
-function getListingTitle() {
+async function getListingTitle() {
     /* const {statusCode, title} = await chrome.runtime.sendMessage({
         action: 'get_listing_title'
     }); */
 
     // Get current tab
-    chrome.tabs.query({active: true, lastFocusedWindow: true}, (tabs) => {
-        // Query current tab's content script for a title
-        //console.log("Got current tabs:",tabs)
-        chrome.tabs.sendMessage(tabs[0].id, {action: "get_listing_title"}, (response) => {
-            if (chrome.runtime.lastError) {
-                // Called when an error occurs in getting the title
-                console.error("Content script not available:", chrome.runtime.lastError.message);
-            } else {
-                // Called when response is recieved from content script
-                console.log("Got title:",response.title);
-            }
-        });
-    });    
+    const currentTabs = await chrome.tabs.query({active: true, lastFocusedWindow: true});    
+
+    // Query current tab's content script for a title
+    //console.log("Got current tabs:",tabs)
+    const response = await chrome.tabs.sendMessage(currentTabs[0].id, {action: "get_listing_title"});
+
+    if (chrome.runtime.lastError) {
+        // Called when an error occurs in getting the title
+        console.error("Content script not available:", chrome.runtime.lastError.message);
+        return 
+    } 
+
+    if (!response.title) {
+        console.error("Title not available in call.");
+    }
+
+    // Called when response is recieved from content script
+    console.log("Got title:",response.title);
+    
+    return response.title
 }

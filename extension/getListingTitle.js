@@ -30,6 +30,8 @@ function handleMessages(message, sender, sendResponse) {
     let listingTitle = addressElement ? addressElement.textContent.trim() : null;
     if (message.action == "get_listing_title") {
         sendResponse({title: listingTitle});
+    } else {
+        sendResponse({error: "function not supported"})
     }
 
     // Since `fetch` is asynchronous, must send an explicit `true`
