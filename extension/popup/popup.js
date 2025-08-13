@@ -93,14 +93,19 @@ function displayCommentFetchError(error) {
     const commentsListElement = document.querySelector('.comments-list');
     const li = document.createElement('li');
     li.innerHTML = '<strong>Error fetching comments.</strong> Please try again later.';
-    // Create refresh button and place it below the text
+    
+    // REFRESH BUTTON
     const refreshBtn = document.createElement('button');
     refreshBtn.textContent = 'Refresh';
     refreshBtn.style.display = 'block';
     refreshBtn.style.marginTop = '8px';
+
+    // Refresh button re-populates comments upon click.
     refreshBtn.onclick = function() {
         populateComments();
     };
+
+    // Format and compile error message
     li.appendChild(document.createElement('br'));
     li.appendChild(refreshBtn);
     commentsListElement.appendChild(li);
@@ -531,7 +536,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const value = input.value.trim();
         if (value !== '') {
             // Set API address to input value
-            console.log("API URL set to:",setApiUrl(value));
+            console.log("API URL set to:",setApiAddress(value));
         }
         modal.style.display = 'none';
     });
@@ -544,10 +549,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function setApiUrl(apiAddress) {
+function setApiAddress(apiAddress) {
     API_ADDRESS = apiAddress;
     API_URL = `${API_ADDRESS}/api/v1`;
+    
+    // Saves API address to local storage
     window.localStorage.setItem("zillow_commenter_api_address", API_ADDRESS);
+
+    // Setting API address automatically refreshes comments
     populateComments();
     return API_URL;
 }
