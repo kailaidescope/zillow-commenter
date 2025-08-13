@@ -87,6 +87,31 @@ async function populateComments() {
     getCommentsByListingId(listingId, displayComments);
 }
 
+// Displays comments not found error
+function displayCommentFetchError(error) {
+    console.error('Error fetching comments:', error);
+    const commentsListElement = document.querySelector('.comments-list');
+    const li = document.createElement('li');
+    li.innerHTML = '<strong>Error fetching comments.</strong> Please try again later.';
+    // Create refresh button and place it below the text
+    const refreshBtn = document.createElement('button');
+    refreshBtn.textContent = 'Refresh';
+    refreshBtn.style.display = 'block';
+    refreshBtn.style.marginTop = '8px';
+    refreshBtn.onclick = function() {
+        populateComments();
+    };
+    li.appendChild(document.createElement('br'));
+    li.appendChild(refreshBtn);
+    commentsListElement.appendChild(li);
+    const submitButton = document.querySelector('#comment-form button[type="submit"]');
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.style.backgroundColor = '#ccc';
+    }
+    return
+}
+
 // Function to display comments in the list
 function displayComments(result, error=null) {
     // Autofill username input with saved username
@@ -106,15 +131,7 @@ function displayComments(result, error=null) {
     commentsListElement.innerHTML = '';
 
     if (error) {
-        console.error('Error fetching comments:', error);
-        const li = document.createElement('li');
-        li.innerHTML = '<strong>Error fetching comments.</strong> Please try again later.';
-        commentsListElement.appendChild(li);
-        const submitButton = document.querySelector('#comment-form button[type="submit"]');
-        if (submitButton) {
-            submitButton.disabled = true;
-            submitButton.style.backgroundColor = '#ccc';
-        }
+        displayCommentFetchError(error);
         return;
     }
 
@@ -530,5 +547,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function setApiUrl(apiAddress) {
     API_ADDRESS = apiAddress;
     API_URL = `${API_ADDRESS}/api/v1`;
-    return API_URL
+    window.localStorage.setItem("zillow_commenter_api_address", API_ADDRESS);
+    populateComments();
+    return API_URL;
 }
