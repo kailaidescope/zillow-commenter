@@ -1081,6 +1081,9 @@ func TestPostCommentParamsValidation_CommentText_AllNonPrintableASCII(t *testing
 	defer teardown(t)
 
 	for i := 0; i < 32; i++ {
+		if i == 10 {
+			continue
+		}
 		params := validPostCommentParams(ValidParamsIPv4)
 		params.CommentText = "Valid text" + string(rune(i))
 		err := validate.Struct(params)
@@ -1108,7 +1111,7 @@ func TestPostCommentParamsValidation_CommentText_OnlyPrintableASCII(t *testing.T
 	for i := 32; i <= 126; i++ {
 		printable += string(rune(i))
 	}
-	params.CommentText = printable
+	params.CommentText = printable + string(rune(10))
 
 	err := validate.Struct(params)
 	if err != nil {
