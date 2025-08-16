@@ -481,7 +481,22 @@ document.getElementById('comment-input').addEventListener('keyup', function vali
     const textarea = this;
     const pattern = new RegExp(textarea.getAttribute('pattern'));
     let hasError = false;
-    // Validate each line separately
+
+    // Print helpful debugging data
+    /* console.log("Regex pattern:",pattern);
+    // Print textarea.value encoded in ASCII hexadecimal
+    const asciiHex = Array.from(textarea.value)
+        .map(char => char.charCodeAt(0).toString(16).padStart(2, '0'))
+        .join(' ');
+    console.log("ASCII hex encoding:", asciiHex); */
+
+    // Check the regex pattern against the whole comment text
+    if (!pattern.test(textarea.value)) {
+        hasError = true;
+        console.log("Comment text has an error:\n\n",textarea.value,"\n");
+    }
+
+    /* Validate each line separately  (OLD METHOD)
     const lines = textarea.value.split("\n");
     let index = 0;
     for (let line of lines) {
@@ -494,7 +509,7 @@ document.getElementById('comment-input').addEventListener('keyup', function vali
             console.log("Line #",index,":'"+line+"' has an error.");
             break;
         }
-    }
+    } */
     //console.log("Comment field is valid:",!hasError);
     if (typeof textarea.setCustomValidity === 'function') {
         textarea.setCustomValidity(hasError ? errorMsg : '');

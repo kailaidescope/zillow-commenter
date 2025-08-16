@@ -118,7 +118,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	}
 
 	// Log the new comment creation
-	log.Println("New comment created for listing:", listingID, "by user:", username, "at timestamp:", timestamp)
+	log.Println("New comment submitted for listing:", listingID, "by user:", username, "at timestamp:", timestamp)
 	log.Println("Comment details:", newComment)
 	log.Println("Sanitizing and validating comment parameters...")
 
