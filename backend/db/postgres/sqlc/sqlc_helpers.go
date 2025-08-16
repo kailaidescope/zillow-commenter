@@ -9,10 +9,10 @@ package sqlc
 // Using [golang-migrate](https://github.com/golang-migrate/migrate)
 
 // To run migrate commands (from backend folder):
-// migrate -path db/migrations -database "<connection_string>" -verbose <command_to_be_executed>
+// migrate -path db/postgres/migrations -database "<connection_string>" -verbose <command_to_be_executed>
 
 // To create a new migration (from backend folder):
-// migrate create -ext sql -dir db/migrations -seq <name_of_migration>
+// migrate create -ext sql -dir db/postgres/migrations -seq <name_of_migration>
 
 //
 
