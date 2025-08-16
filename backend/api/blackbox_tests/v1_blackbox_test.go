@@ -41,8 +41,8 @@ func formatResponse(resp *resty.Response) string {
 	return resp.Status() + ", " + resp.String()
 }
 
-func getTestListingId() int {
-	return 0
+func getTestListingId() string {
+	return "0"
 }
 
 // ===================================================================================================================== //
@@ -59,7 +59,7 @@ func TestPostComment_ValidateListingID_InvalidID(t *testing.T) {
 	}
 
 	values := url.Values{}
-	values.Set("listing_id", "<b>"+string(rune(getTestListingId()))+"</b>")
+	values.Set("listing_id", "<b>"+getTestListingId()+"</b>")
 	values.Set("user_id", v7.String())
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "This is a comment.")
@@ -97,7 +97,7 @@ func TestPostComment_SanitizesUserID(t *testing.T) {
 
 	userID := "<i>" + v7.String() + "</i>"
 	values := url.Values{}
-	values.Set("listing_id", string(rune(getTestListingId())))
+	values.Set("listing_id", getTestListingId())
 	values.Set("user_id", userID)
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "This is a comment.")
@@ -128,7 +128,7 @@ func TestPostComment_SanitizesUsername(t *testing.T) {
 	}
 
 	values := url.Values{}
-	values.Set("listing_id", string(rune(getTestListingId())))
+	values.Set("listing_id", getTestListingId())
 	values.Set("user_id", v7.String())
 	values.Set("username", "<b>TestUser</b>")
 	values.Set("comment_text", "This is a comment.")
@@ -159,7 +159,7 @@ func TestPostComment_SanitizesCommentText(t *testing.T) {
 	}
 
 	values := url.Values{}
-	values.Set("listing_id", string(rune(getTestListingId())))
+	values.Set("listing_id", getTestListingId())
 	values.Set("user_id", v7.String())
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "<script>alert('xss')</script>This is a comment.")
@@ -203,7 +203,7 @@ func runSanitizationTestCases(t *testing.T, replacementText string, cases []stru
 		}
 
 		values := url.Values{}
-		values.Set("listing_id", string(rune(getTestListingId())))
+		values.Set("listing_id", getTestListingId())
 		values.Set("user_id", v7.String())
 		values.Set("username", "TestUser")
 		values.Set("comment_text", c.input)
@@ -353,7 +353,7 @@ func TestPostComment_RejectsInvalidUserID(t *testing.T) {
 	defer testingSuite(t)
 
 	values := url.Values{}
-	values.Set("listing_id", string(rune(getTestListingId())))
+	values.Set("listing_id", getTestListingId())
 	values.Set("user_id", "not-a-uuid")
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "This is a comment.")
@@ -382,7 +382,7 @@ func TestPostComment_RejectsInvalidUsername(t *testing.T) {
 	}
 
 	values := url.Values{}
-	values.Set("listing_id", string(rune(getTestListingId())))
+	values.Set("listing_id", getTestListingId())
 	values.Set("user_id", v7.String())
 	values.Set("username", "user!@#")
 	values.Set("comment_text", "This is a comment.")
@@ -411,7 +411,7 @@ func TestPostComment_RejectsTooLongCommentText(t *testing.T) {
 	}
 
 	values := url.Values{}
-	values.Set("listing_id", string(rune(getTestListingId())))
+	values.Set("listing_id", getTestListingId())
 	values.Set("user_id", v7.String())
 	values.Set("username", "TestUser")
 	values.Set("comment_text", makeStringOfLength(301))
