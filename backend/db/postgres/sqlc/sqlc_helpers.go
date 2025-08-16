@@ -243,7 +243,7 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 
 	// COMMENT TEXT
 
-	commentTextValidation := "required,printascii,min=1,max=300"
+	commentTextValidation := "required,commentText,min=1,max=300"
 	err = sl.Validator().Var(postCommentParams.CommentText, commentTextValidation)
 	if err != nil {
 		sl.ReportError(postCommentParams.CommentText, "CommentText", "CommentText", commentTextValidation, "")
@@ -261,18 +261,39 @@ func RegisterValidators(validate *validator.Validate) {
 
 	// Registers username validator
 	validate.RegisterValidation("username", customUsernameValidator)
+
+	// Registers commentText validator
+	validate.RegisterValidation("commentText", customCommentValidator)
 }
 
 // customUsernameValidator validates that text includes only alphanumeric symbols or
 // ' ', '.', ',', '_', and "-".
 //
 // Input:
-//   - fl: a representation of the username field to be checked
+//   - fl: a representation of the Username field to be checked.
 //
 // Output:
-//   - bool: true if and only if the username matches the regex
+//   - bool: true if and only if the username matches the regex and the regex compiled correctly.
 func customUsernameValidator(fl validator.FieldLevel) bool {
-	expression := `^[A-Za-z0-9 ,._\-]+$`
+	expression := `^[A-Za-z0-9 ,._\-]+$` // This matches all alphanumeric characters, plus commas, periods, underscores, and dashes.
+	re, err := regexp.Compile(expression)
+	if err != nil {
+		log.Println("Error encountered when trying to compile the following regex:", expression, ".\nError:", err)
+		return false
+	}
+
+	return re.MatchString(fl.Field().String())
+}
+
+// customCommentValidator validates that posted comments only include printable ascii and newlines.
+//
+// Input:
+//   - fl: a validator representation of the CommentText field.
+//
+// Output:
+//   - bool: true iff the comment matches the regex and the regex compiled correctly.
+func customCommentValidator(fl validator.FieldLevel) bool {
+	expression := `^[\x20-\x7E\x0A]+$` // This matches all printable ascii, plus newlines.
 	re, err := regexp.Compile(expression)
 	if err != nil {
 		log.Println("Error encountered when trying to compile the following regex:", expression, ".\nError:", err)
