@@ -126,13 +126,13 @@ func defaultCommentRow() sqlc.GetCommentsByListingIDRow {
 func defaultComment() Comment {
 	id, _ := uuid.NewV7()
 	return Comment{
-		TargetListing: "listing",
-		CommentID:     id,
-		UserIP:        "ip",
-		UserID:        "user",
-		Username:      "name",
-		CommentText:   "text",
-		Timestamp:     time.Now().UnixMicro(),
+		ListingID:   "listing",
+		CommentID:   id,
+		UserIP:      "ip",
+		UserID:      "user",
+		Username:    "name",
+		CommentText: "text",
+		Timestamp:   time.Now().UnixMicro(),
 	}
 }
 
@@ -149,7 +149,7 @@ func TestGenericRowToComment_ValidFakeRow(t *testing.T) {
 	if err != nil {
 		t.Fatal("Expected no error, got ", err)
 	}
-	if comment.TargetListing != row.ListingID || comment.Username != row.Username {
+	if comment.ListingID != row.ListingID || comment.Username != row.Username {
 		t.Error("Unexpected comment fields: ", comment)
 	}
 	log.Println("Successfully converted fake SQLC row struct to Comment:\n\n", comment, "\n\nfrom row:\n\n", row)
@@ -162,7 +162,7 @@ func TestGenericRowToComment_ValidPostCommentRow(t *testing.T) {
 	if err != nil {
 		t.Fatal("Expected no error, got ", err)
 	}
-	if comment.TargetListing != row.ListingID || comment.Username != row.Username {
+	if comment.ListingID != row.ListingID || comment.Username != row.Username {
 		t.Error("Unexpected comment fields: ", comment)
 	}
 	log.Println("Successfully converted PostCommentRow to Comment:\n\n", comment, "\n\nfrom row:\n\n", row)
@@ -175,7 +175,7 @@ func TestGenericRowToComment_ValidGetCommentRow(t *testing.T) {
 	if err != nil {
 		t.Fatal("Expected no error, got ", err)
 	}
-	if comment.TargetListing != row.ListingID || comment.Username != row.Username {
+	if comment.ListingID != row.ListingID || comment.Username != row.Username {
 		t.Error("Unexpected comment fields: ", comment)
 	}
 	log.Println("Successfully converted GetCommentRow to Comment:\n\n", comment, "\n\nfrom row:\n\n", row)
@@ -268,8 +268,8 @@ func TestComment_ToPostCommentRow_Valid(t *testing.T) {
 	if row == nil {
 		t.Error("Expected non-nil PostCommentRow")
 	}
-	if row.ListingID != comment.TargetListing {
-		t.Error("Expected ListingID ", comment.TargetListing, ", got ", row.ListingID)
+	if row.ListingID != comment.ListingID {
+		t.Error("Expected ListingID ", comment.ListingID, ", got ", row.ListingID)
 	}
 	if row.UserIp != comment.UserIP {
 		t.Error("Expected UserIp ", comment.UserIP, ", got ", row.UserIp)
@@ -420,7 +420,7 @@ func TestCommentToCommentRow_AndBack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	if got.CommentID != comment.CommentID || got.TargetListing != comment.TargetListing {
+	if got.CommentID != comment.CommentID || got.ListingID != comment.ListingID {
 		t.Errorf("Round-trip conversion failed: %+v vs %+v", got, comment)
 	}
 }
@@ -437,7 +437,7 @@ func TestCommentsToCommentRows_Empty(t *testing.T) {
 func TestComment_ToResponse(t *testing.T) {
 	comment := defaultComment()
 	resp := comment.ToResponse()
-	if resp.TargetListing != comment.TargetListing || resp.CommentID != comment.CommentID {
+	if resp.TargetListing != comment.ListingID || resp.CommentID != comment.CommentID {
 		t.Errorf("ToResponse mismatch: %+v vs %+v", resp, comment)
 	}
 }
@@ -449,7 +449,7 @@ func TestToResponseSlice(t *testing.T) {
 	if len(resps) != 1 {
 		t.Errorf("Expected 1 response, got %d", len(resps))
 	}
-	if resps[0].TargetListing != comment.TargetListing {
+	if resps[0].TargetListing != comment.ListingID {
 		t.Errorf("Unexpected TargetListing: %s", resps[0].TargetListing)
 	}
 }

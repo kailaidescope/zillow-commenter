@@ -94,10 +94,11 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	userID := c.PostForm("user_id")
 	username := c.PostForm("username")
 	commentText := c.PostForm("comment_text")
+	listingTitle := c.PostForm("listing_title")
 
 	// Log the request details
-	log.Printf("PostListingComment called with listing_id: %s, user_id: %s, username: %s, comment_text: %s\nfrom IP: %s\nat timestamp: %d",
-		listingID, userID, username, commentText, userIP, timestamp)
+	log.Printf("PostListingComment called with listing_id: %s, user_id: %s, username: %s, comment_text: %s, listing_title: %s\nfrom IP: %s\nat timestamp: %d",
+		listingID, userID, username, commentText, listingTitle, userIP, timestamp)
 
 	// Generate a new UUID for the comment using a timestamp-based version (v7) to ensure uniqueness
 	commentID, err := uuid.NewV7()
@@ -109,12 +110,13 @@ func (server *Server) PostListingComment(c *gin.Context) {
 
 	// Create a new comment
 	newComment := sqlc.PostCommentParams{
-		CommentID:   pgtype.UUID{Bytes: [16]byte(commentID), Valid: true}, // Unique comment ID based on timestamp
-		ListingID:   listingID,
-		UserIp:      userIP,
-		UserID:      userID,
-		Username:    username,
-		CommentText: commentText,
+		CommentID:    pgtype.UUID{Bytes: [16]byte(commentID), Valid: true}, // Unique comment ID based on timestamp
+		ListingID:    listingID,
+		UserIp:       userIP,
+		UserID:       userID,
+		Username:     username,
+		CommentText:  commentText,
+		ListingTitle: pgtype.Text{String: listingTitle, Valid: true}, // Convert listingTitle to a pgtype and mark it as valid (i.e. not null)
 	}
 
 	// Log the new comment creation
@@ -256,7 +258,7 @@ func (server Server) getComments(listingID string) ([]models.Comment, error) {
 	}
 
 	// Convert the sqlc.GetCommentsByListingIDRow structs to models.Comment structs
-	comments, err := models.GetCommentRowsToComments(commentRows)
+	comments, err := models.GenericSQLCRowsToComments(commentRows)
 	if err != nil {
 		log.Println("Error converting comment rows to models. Comment structs for listing:", listingID, "-", err)
 		return nil, errors.Join(err, errors.New("failed to convert comment rows to models.Comment structs"))

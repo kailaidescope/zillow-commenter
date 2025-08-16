@@ -250,6 +250,14 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 	if err != nil {
 		sl.ReportError(postCommentParams.CommentText, "CommentText", "CommentText", commentTextValidation, "")
 	}
+
+	// LISTING TITLE
+
+	listingTitleValidation := "required,printascii,min=1,max=200"
+	err = sl.Validator().Var(postCommentParams.ListingTitle, listingTitleValidation)
+	if err != nil {
+		sl.ReportError(postCommentParams.ListingTitle, "ListingTitle", "ListingTitle", listingTitleValidation, "")
+	}
 }
 
 // RegisterValidators is used to initialize the custom validation functions in sqlc.

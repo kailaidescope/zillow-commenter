@@ -6,6 +6,7 @@ package models
 
 import (
 	"errors"
+	"log"
 	"math/big"
 	"reflect"
 	"strconv"
@@ -25,13 +26,14 @@ import (
 // Notes:
 //   - Timestamp is in microseconds since the epoch, stored as an int64. Is valid until the 29th millenium. (All hail the God Emperor of Mankind!)
 type Comment struct {
-	TargetListing string    `json:"listing_id"`
-	CommentID     uuid.UUID `json:"comment_id"`
-	UserIP        string    `json:"user_ip"`
-	UserID        string    `json:"user_id"`
-	Username      string    `json:"username"`
-	CommentText   string    `json:"comment_text"`
-	Timestamp     int64     `json:"timestamp"`
+	ListingID    string    `json:"listing_id"`
+	CommentID    uuid.UUID `json:"comment_id"`
+	UserIP       string    `json:"user_ip"`
+	UserID       string    `json:"user_id"`
+	Username     string    `json:"username"`
+	CommentText  string    `json:"comment_text"`
+	Timestamp    int64     `json:"timestamp"`
+	ListingTitle *string   `json:"listing_title"`
 }
 
 // ResponseComment represents a comment on a listing that can be safely returned to the user.
@@ -65,90 +67,119 @@ func GenericSQLCRowToComment(row interface{}) (*Comment, error) {
 		return nil, errors.New("input is not a struct")
 	}
 
-	getField := func(name string) (reflect.Value, bool) {
+	getFieldAndValidity := func(name string) (reflect.Value, bool) {
 		f := v.FieldByName(name)
 		return f, f.IsValid()
 	}
 
 	// Extract CommentID
-	commentIDField, ok := getField("CommentID")
+	commentIDField, ok := getFieldAndValidity("CommentID")
 	if !ok {
 		return nil, errors.New("missing CommentID field")
 	}
-	uuidBytes, ok := commentIDField.Interface().(pgtype.UUID)
+	commentUUIDAsBytes, ok := commentIDField.Interface().(pgtype.UUID)
 	if !ok {
 		return nil, errors.New("CommentID field is not of type pgtype.UUID")
 	}
-	if !uuidBytes.Valid {
+	if !commentUUIDAsBytes.Valid {
 		return nil, errors.New("CommentID field is not valid")
 	}
 
-	commentUUID, err := uuid.FromBytes(uuidBytes.Bytes[:])
+	commentUUID, err := uuid.FromBytes(commentUUIDAsBytes.Bytes[:])
 	if err != nil {
 		return nil, errors.Join(err, errors.New("invalid comment ID format"))
 	}
 
 	// Extract ListingID
-	listingIDField, ok := getField("ListingID")
+	listingIDField, ok := getFieldAndValidity("ListingID")
 	if !ok {
 		return nil, errors.New("missing ListingID field")
 	}
 	listingID := listingIDField.String()
 
 	// Extract UserIp
-	userIPField, ok := getField("UserIp")
+	userIPField, ok := getFieldAndValidity("UserIp")
 	if !ok {
 		return nil, errors.New("missing UserIp field")
 	}
 	userIP := userIPField.String()
 
 	// Extract UserID
-	userIDField, ok := getField("UserID")
+	userIDField, ok := getFieldAndValidity("UserID")
 	if !ok {
 		return nil, errors.New("missing UserID field")
 	}
 	userID := userIDField.String()
 
 	// Extract Username
-	usernameField, ok := getField("Username")
+	usernameField, ok := getFieldAndValidity("Username")
 	if !ok {
 		return nil, errors.New("missing Username field")
 	}
 	username := usernameField.String()
 
 	// Extract CommentText
-	commentTextField, ok := getField("CommentText")
+	commentTextField, ok := getFieldAndValidity("CommentText")
 	if !ok {
 		return nil, errors.New("missing CommentText field")
 	}
 	commentText := commentTextField.String()
 
 	// Extract Timestamp
-	extractField, ok := getField("Extract")
+	timestampField, ok := getFieldAndValidity("Extract")
 	if !ok {
 		return nil, errors.New("missing Extract field")
 	}
-	extract := extractField.Interface().(pgtype.Numeric)
+	timestampPGWrapper := timestampField.Interface().(pgtype.Numeric)
 	// Convert the timestamp from pgtype.Numeric to int64.
-	if !extract.Valid {
+	if !timestampPGWrapper.Valid {
 		return nil, errors.New("timestamp is not valid")
 	}
 	// Ensure the timestamp is a valid int64.
-	timestamp := extract.Int.Int64()
+	timestamp := timestampPGWrapper.Int.Int64()
 	// Check if the timestamp is valid (greater than a reference time [May 27th, 2025]).
-	if !extract.Valid || timestamp < 1748389238 {
+	if !timestampPGWrapper.Valid || timestamp < 1748389238 {
 		return nil, errors.New("timestamp is not valid. should be greater than 1748389238, but is " + strconv.Itoa(int(timestamp)))
 	}
 
+	// Extract ListingTitle
+	listingTitleField, ok := getFieldAndValidity("ListingTitle")
+	if !ok {
+		return nil, errors.New("missing ListingTitle field")
+	}
+	listingTitlePGWrapper := listingTitleField.Interface().(pgtype.Text)
+
+	// Set the listing title to nil unless listingTitlePGWrapper.Valid is true
+	var listingTitle *string = nil
+	if listingTitlePGWrapper.Valid {
+		listingTitle = &listingTitlePGWrapper.String
+	} else {
+		log.Println("Listing title was converted to nil from postgres type, since valid=false.")
+	}
+
 	return &Comment{
-		TargetListing: listingID,
-		CommentID:     commentUUID,
-		UserIP:        userIP,
-		UserID:        userID,
-		Username:      username,
-		CommentText:   commentText,
-		Timestamp:     timestamp,
+		ListingID:    listingID,
+		CommentID:    commentUUID,
+		UserIP:       userIP,
+		UserID:       userID,
+		Username:     username,
+		CommentText:  commentText,
+		Timestamp:    timestamp,
+		ListingTitle: listingTitle,
 	}, nil
+}
+
+// GenericSQLCRowsToComments converts a slice of generic SQLC comment rows to a slice of Comment structs.
+func GenericSQLCRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]Comment, error) {
+	var comments []Comment
+	for _, row := range rows {
+		comment, err := GenericSQLCRowToComment(row)
+		if err != nil {
+			return nil, errors.Join(err, errors.New("failed to convert comment row to Comment struct"))
+		}
+		comments = append(comments, *comment)
+	}
+	return comments, nil
 }
 
 // ToPostCommentRow converts a Comment struct used by the API to a sqlc.PostCommentRow struct used by postgres.
@@ -170,7 +201,7 @@ func (comment *Comment) ToPostCommentRow() *sqlc.PostCommentRow {
 	// Create a GetCommentsByListingIDRow struct from the Comment struct.
 	return &sqlc.PostCommentRow{
 		CommentID:   pgtype.UUID{Bytes: [16]byte(comment.CommentID), Valid: true},
-		ListingID:   comment.TargetListing,
+		ListingID:   comment.ListingID,
 		UserIp:      comment.UserIP,
 		UserID:      comment.UserID,
 		Username:    comment.Username,
@@ -213,13 +244,13 @@ func GetCommentRowToComment(row sqlc.GetCommentsByListingIDRow) (*Comment, error
 
 	// Convert a database row to a Comment struct.
 	return &Comment{
-		TargetListing: row.ListingID,
-		CommentID:     commentUUID,
-		UserIP:        row.UserIp,
-		UserID:        row.UserID,
-		Username:      row.Username,
-		CommentText:   row.CommentText,
-		Timestamp:     timestamp,
+		ListingID:   row.ListingID,
+		CommentID:   commentUUID,
+		UserIP:      row.UserIp,
+		UserID:      row.UserID,
+		Username:    row.Username,
+		CommentText: row.CommentText,
+		Timestamp:   timestamp,
 	}, nil
 }
 
@@ -256,7 +287,7 @@ func CommentToGetCommentRow(comment Comment) *sqlc.GetCommentsByListingIDRow {
 	// Create a GetCommentsByListingIDRow struct from the Comment struct.
 	return &sqlc.GetCommentsByListingIDRow{
 		CommentID:   pgtype.UUID{Bytes: [16]byte(comment.CommentID), Valid: true},
-		ListingID:   comment.TargetListing,
+		ListingID:   comment.ListingID,
 		UserIp:      comment.UserIP,
 		UserID:      comment.UserID,
 		Username:    comment.Username,
@@ -279,7 +310,7 @@ func CommentsToGetCommentRows(comments []Comment) []sqlc.GetCommentsByListingIDR
 // This is used to format the comment data for API responses, excluding sensitive information like UserIP and UserID.
 func (c Comment) ToResponse() ResponseComment {
 	return ResponseComment{
-		TargetListing: c.TargetListing,
+		TargetListing: c.ListingID,
 		CommentID:     c.CommentID,
 		Username:      c.Username,
 		CommentText:   c.CommentText,
