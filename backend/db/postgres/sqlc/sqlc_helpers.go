@@ -18,6 +18,8 @@ package sqlc
 
 // SQLC
 
+// Using [sqlc](https://github.com/sqlc-dev/sqlc)
+
 // sqlc generate
 // after having modified the query and schema files
 

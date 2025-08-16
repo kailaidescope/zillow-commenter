@@ -5,7 +5,8 @@ CREATE TABLE IF NOT EXISTS comments (
     user_id varchar(50) NOT NULL,
     username varchar(50) NOT NULL,
     comment_text varchar(300) NOT NULL,
-    date_created TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    date_created TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    listing_title varchar(200)
 );
 
 CREATE TABLE IF NOT EXISTS blacklist (
