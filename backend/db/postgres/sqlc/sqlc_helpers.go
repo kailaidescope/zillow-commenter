@@ -253,10 +253,15 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 
 	// LISTING TITLE
 
+	// Check that the pgtype is valid
+	if !postCommentParams.ListingTitle.Valid {
+		sl.ReportError(postCommentParams.ListingTitle.Valid, "ListingTitle", "Valid", "Title must be valid", "")
+	}
+	// Check that the string is valid
 	listingTitleValidation := "required,printascii,min=1,max=200"
-	err = sl.Validator().Var(postCommentParams.ListingTitle, listingTitleValidation)
+	err = sl.Validator().Var(postCommentParams.ListingTitle.String, listingTitleValidation)
 	if err != nil {
-		sl.ReportError(postCommentParams.ListingTitle, "ListingTitle", "ListingTitle", listingTitleValidation, "")
+		sl.ReportError(postCommentParams.ListingTitle, "ListingTitle", "String", listingTitleValidation, "")
 	}
 }
 

@@ -313,30 +313,33 @@ func validPostCommentParams(paramType ValidPostCommentParamsType) PostCommentPar
 	switch paramType {
 	case ValidParamsIPv6:
 		return PostCommentParams{
-			CommentID:   *commentID,
-			ListingID:   "654321",
-			UserIp:      "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
-			UserID:      userID.String(),
-			Username:    "TestUserIPv6",
-			CommentText: "This is a valid IPv6 comment.",
+			CommentID:    *commentID,
+			ListingID:    "654321",
+			UserIp:       "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+			UserID:       userID.String(),
+			Username:     "TestUserIPv6",
+			CommentText:  "This is a valid IPv6 comment.",
+			ListingTitle: pgtype.Text{String: "Regular title", Valid: true},
 		}
 	case ValidParamsAltIPv4:
 		return PostCommentParams{
-			CommentID:   *commentID,
-			ListingID:   "789012",
-			UserIp:      "10.0.0.1",
-			UserID:      userID.String(),
-			Username:    "TestUserAltIPv4",
-			CommentText: "This is another valid IPv4 comment.",
+			CommentID:    *commentID,
+			ListingID:    "789012",
+			UserIp:       "10.0.0.1",
+			UserID:       userID.String(),
+			Username:     "TestUserAltIPv4",
+			CommentText:  "This is another valid IPv4 comment.",
+			ListingTitle: pgtype.Text{String: "Regular title", Valid: true},
 		}
 	default: // ValidParamsIPv4
 		return PostCommentParams{
-			CommentID:   *commentID,
-			ListingID:   "123456",
-			UserIp:      "192.168.1.1",
-			UserID:      userID.String(),
-			Username:    "TestUser",
-			CommentText: "This is a valid comment.",
+			CommentID:    *commentID,
+			ListingID:    "123456",
+			UserIp:       "192.168.1.1",
+			UserID:       userID.String(),
+			Username:     "TestUser",
+			CommentText:  "This is a valid comment.",
+			ListingTitle: pgtype.Text{String: "Regular title", Valid: true},
 		}
 	}
 }
@@ -1142,6 +1145,114 @@ func TestPostCommentParamsValidation_CommentText_MaxLength(t *testing.T) {
 	err := validate.Struct(params)
 	if err == nil {
 		t.Error("Expected error for CommentText with length > 300, got nil")
+	}
+}
+
+// --- LISTINGTITLE ---
+
+func TestPostCommentParamsValidation_ListingTitle_ValidPGType(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	params.ListingTitle.String = "Regular title"
+	params.ListingTitle.Valid = false
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for invalid Valid field in ListingTitle, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_ListingTitle_Required(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	params.ListingTitle.String = ""
+	params.ListingTitle.Valid = true
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for missing ListingTitle, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_ListingTitle_MinLength(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	params.ListingTitle.String = ""
+	params.ListingTitle.Valid = true
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for ListingTitle with length < 1, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_ListingTitle_MaxLength(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	params.ListingTitle.String = makeStringOfLength(201) // max=200
+	params.ListingTitle.Valid = true
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for ListingTitle with length > 200, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_ListingTitle_AllowedCharacters(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	params.ListingTitle.String = "123 Main St., Apt #5 - New York"
+	params.ListingTitle.Valid = true
+
+	err := validate.Struct(params)
+	if err != nil {
+		t.Errorf("Expected valid ListingTitle with allowed characters, got error: %v", err)
+	}
+
+	for val := 32; val < 127; val++ {
+		params := validPostCommentParams(ValidParamsIPv4)
+		params.ListingTitle.String = string(rune(val))
+		params.ListingTitle.Valid = true
+
+		err := validate.Struct(params)
+		if err != nil {
+			t.Error("Expected no error for ListingTitle with allowed character #", val, " (", string(rune(val)), "), got nil")
+		}
+	}
+}
+
+func TestPostCommentParamsValidation_ListingTitle_DisallowedCharacters(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	for val := 0; val < 32; val++ {
+		params := validPostCommentParams(ValidParamsIPv4)
+		params.ListingTitle.String = string(rune(val))
+		params.ListingTitle.Valid = true
+
+		err := validate.Struct(params)
+		if err == nil {
+			t.Error("Expected error for ListingTitle with disallowed character #", val, " (", string(rune(val)), "), got nil")
+		}
+	}
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	params.ListingTitle.String = string(rune(127))
+	params.ListingTitle.Valid = true
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for ListingTitle with disallowed character #", 127, " (", string(rune(127)), "), got nil")
 	}
 }
 
