@@ -9,6 +9,7 @@ import (
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -21,13 +22,14 @@ import (
 
 // Stub struct to simulate a generic database row.
 type fakeRow struct {
-	CommentID   pgtype.UUID
-	ListingID   string
-	UserIp      string
-	UserID      string
-	Username    string
-	CommentText string
-	Extract     pgtype.Numeric
+	CommentID    pgtype.UUID
+	ListingID    string
+	UserIp       string
+	UserID       string
+	Username     string
+	CommentText  string
+	Extract      pgtype.Numeric
+	ListingTitle pgtype.Text
 }
 
 // validPgtypeUUID generates a valid pgtype.UUID for testing.
@@ -64,13 +66,14 @@ func defaultFakeRow() fakeRow {
 	commentID, _ := validPgtypeUUID()
 	userID, _ := uuid.NewV7()
 	return fakeRow{
-		CommentID:   commentID,
-		ListingID:   "1234567",
-		UserIp:      "127.0.0.1",
-		UserID:      userID.String(),
-		Username:    "tester",
-		CommentText: "hello",
-		Extract:     validPgtypeNumeric(time.Now().UnixMicro()),
+		CommentID:    commentID,
+		ListingID:    "1234567",
+		UserIp:       "127.0.0.1",
+		UserID:       userID.String(),
+		Username:     "tester",
+		CommentText:  "hello",
+		Extract:      validPgtypeNumeric(time.Now().UnixMicro()),
+		ListingTitle: pgtype.Text{String: "test title", Valid: true},
 	}
 }
 
@@ -79,13 +82,14 @@ func defaultPostCommentRow() sqlc.PostCommentRow {
 	commentID, _ := validPgtypeUUID()
 	userID, _ := uuid.NewV7()
 	return sqlc.PostCommentRow{
-		CommentID:   commentID,
-		ListingID:   "1234567",
-		UserIp:      "127.0.0.1",
-		UserID:      userID.String(),
-		Username:    "tester",
-		CommentText: "hello",
-		Extract:     validPgtypeNumeric(time.Now().UnixMicro()),
+		CommentID:    commentID,
+		ListingID:    "1234567",
+		UserIp:       "127.0.0.1",
+		UserID:       userID.String(),
+		Username:     "tester",
+		CommentText:  "hello",
+		Extract:      validPgtypeNumeric(time.Now().UnixMicro()),
+		ListingTitle: pgtype.Text{String: "test title", Valid: true},
 	}
 }
 
@@ -94,13 +98,14 @@ func defaultGetCommentRow() sqlc.GetCommentsByListingIDRow {
 	commentID, _ := validPgtypeUUID()
 	userID, _ := uuid.NewV7()
 	return sqlc.GetCommentsByListingIDRow{
-		CommentID:   commentID,
-		ListingID:   "1234567",
-		UserIp:      "127.0.0.1",
-		UserID:      userID.String(),
-		Username:    "tester",
-		CommentText: "hello",
-		Extract:     validPgtypeNumeric(time.Now().UnixMicro()),
+		CommentID:    commentID,
+		ListingID:    "1234567",
+		UserIp:       "127.0.0.1",
+		UserID:       userID.String(),
+		Username:     "tester",
+		CommentText:  "hello",
+		Extract:      validPgtypeNumeric(time.Now().UnixMicro()),
+		ListingTitle: pgtype.Text{String: "test title", Valid: true},
 	}
 }
 
@@ -110,13 +115,14 @@ func defaultCommentRow() sqlc.GetCommentsByListingIDRow {
 	commentID, _ := validPgtypeUUID()
 	userID, _ := uuid.NewV7()
 	return sqlc.GetCommentsByListingIDRow{
-		CommentID:   commentID,
-		ListingID:   "listing",
-		UserIp:      "ip",
-		UserID:      userID.String(),
-		Username:    "name",
-		CommentText: "text",
-		Extract:     validPgtypeNumeric(time.Now().UnixMicro()),
+		CommentID:    commentID,
+		ListingID:    "listing",
+		UserIp:       "ip",
+		UserID:       userID.String(),
+		Username:     "name",
+		CommentText:  "text",
+		Extract:      validPgtypeNumeric(time.Now().UnixMicro()),
+		ListingTitle: pgtype.Text{String: "test title", Valid: true},
 	}
 }
 
@@ -126,13 +132,14 @@ func defaultCommentRow() sqlc.GetCommentsByListingIDRow {
 func defaultComment() Comment {
 	id, _ := uuid.NewV7()
 	return Comment{
-		ListingID:   "listing",
-		CommentID:   id,
-		UserIP:      "ip",
-		UserID:      "user",
-		Username:    "name",
-		CommentText: "text",
-		Timestamp:   time.Now().UnixMicro(),
+		ListingID:    "listing",
+		CommentID:    id,
+		UserIP:       "ip",
+		UserID:       "user",
+		Username:     "name",
+		CommentText:  "text",
+		Timestamp:    time.Now().UnixMicro(),
+		ListingTitle: aws.String("test title"),
 	}
 }
 

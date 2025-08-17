@@ -7,6 +7,7 @@ toolchain go1.23.9
 require (
 	github.com/aead/chacha20poly1305 v0.0.0-20201124145622-1a5aba2a8b29
 	github.com/aws/aws-lambda-go v1.49.0
+	github.com/aws/aws-sdk-go-v2 v1.38.0
 	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
 	github.com/gin-contrib/cors v1.7.5
 	github.com/gin-gonic/gin v1.10.1
@@ -19,7 +20,10 @@ require (
 	github.com/o1egl/paseto v1.0.0
 )
 
-require github.com/kr/pretty v0.3.1 // indirect
+require (
+	github.com/aws/smithy-go v1.22.5 // indirect
+	github.com/kr/pretty v0.3.1 // indirect
+)
 
 require (
 	github.com/aead/chacha20 v0.0.0-20180709150244-8b13a72661da // indirect
