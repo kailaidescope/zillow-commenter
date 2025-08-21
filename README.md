@@ -2,7 +2,7 @@
 
 #### By Kai Turanski
 
-_[WIP - Planned release in July 2025]_
+_[WIP - Planned release in November 2025]_
 
 Chrome extension that allows you to comment on zillow posts. Inspired by Hank Green's [tweet](https://x.com/hankgreen/status/1479509887373643780?lang=en) suggesting that zillow should have comments.
 
