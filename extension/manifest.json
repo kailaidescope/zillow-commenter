@@ -8,9 +8,8 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.zillow.com/*"],
-      "js": ["content.js"],
-      "run_at": "document_end"
+      "matches": ["https://www.zillow.com/homedetails/*"],
+      "js": ["getListingTitle.js"]
     }
   ],
   "permissions": ["activeTab"],

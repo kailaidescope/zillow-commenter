@@ -7,8 +7,19 @@
 </head>
 <body>
     <div id="header-box">
-        <img width="40px" src="../images/icon1k.png">
+        <img id="zillowette-icon" width="40px" src="../images/icon1k.png">
         <h2 id="header-text">Zillowette</h2>
+    </div>
+    <!-- Modal Popup for icon click -->
+    <div id="icon-modal">
+        <div class="icon-modal-content">
+            <h3>Enter API address:</h3>
+            <input type="text" id="icon-modal-input" placeholder="Type here...">
+            <div class="icon-modal-buttons">
+                <button id="icon-modal-submit">Submit</button>
+                <button id="icon-modal-cancel">Cancel</button>
+            </div>
+        </div>
     </div>
     <div class="tabs">
         <button class="tab active" data-tab="comments">Comments</button>
@@ -33,9 +44,15 @@
             </div>
             <div class="comment-input-section">
                 <form id="comment-form">
-                    <input type="text" id="username-input" name="username" maxlength="20" placeholder="Your name" required>
-                    <textarea id="comment-input" name="comment" rows="3" maxlength="300" placeholder="Write your comment here..." required></textarea>
-                    <button type="submit" id="submit-comment">Submit</button>
+                    <input type="text" id="username-input" name="username" maxlength="20" placeholder="Your name" required pattern="^[A-Za-z0-9 ,._\-]+$" title="Usernames must include only letters, numbers, spaces, or the characters , . _ -">
+                    <textarea id="comment-input" name="comment" rows="3" maxlength="300" placeholder="Write your comment here..." required pattern="^[\x20-\x7E\x0A]+$" title="Can only include letters, numbers, punction, and newlines."></textarea>
+                    <div id="submit-button-row">
+                        <button type="submit" id="submit-comment">Submit</button>
+                        <div id="error-field">
+                            <h3 id="error-header">Error:</h3>
+                            <p id="error-message">A very long error message would look like this in some cases so it's important to handle.A very long error message would look like this in some cases so it's important to handle.A very long error message would look like this in some cases so it's important to handle.A very long error message would look like this in some cases so it's important to handle.</p>
+                        </div>
+                    </div>
                 </form>
             </div>
         </div>

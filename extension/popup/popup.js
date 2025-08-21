@@ -2,8 +2,8 @@
 const API_PORT = "3000";
 const API_URL = `https://${API_ADDRESS}:${API_PORT}/api/v1`; */
 
-const API_ADDRESS = window.localStorage.getItem('zillow_commenter_api_address') || "";
-const API_URL = `${API_ADDRESS}/api/v1`;
+let API_ADDRESS = window.localStorage.getItem('zillow_commenter_api_address') || "";
+let API_URL = `${API_ADDRESS}/api/v1`;
 
 
 // Log the current user ID from localStorage
@@ -14,6 +14,9 @@ setUserId();
 
 // Populate comments when the popup is opened
 populateComments();
+
+// Hide error field
+hideErrorField()
 
 // Sets a unique user ID in localStorage if it doesn't exist
 //
@@ -84,6 +87,36 @@ async function populateComments() {
     getCommentsByListingId(listingId, displayComments);
 }
 
+// Displays comments not found error
+function displayCommentFetchError(error) {
+    console.error('Error fetching comments:', error);
+    const commentsListElement = document.querySelector('.comments-list');
+    const li = document.createElement('li');
+    li.innerHTML = '<strong>Error fetching comments.</strong> Please try again later.';
+    
+    // REFRESH BUTTON
+    const refreshBtn = document.createElement('button');
+    refreshBtn.textContent = 'Refresh';
+    refreshBtn.style.display = 'block';
+    refreshBtn.style.marginTop = '8px';
+
+    // Refresh button re-populates comments upon click.
+    refreshBtn.onclick = function() {
+        populateComments();
+    };
+
+    // Format and compile error message
+    li.appendChild(document.createElement('br'));
+    li.appendChild(refreshBtn);
+    commentsListElement.appendChild(li);
+    const submitButton = document.querySelector('#comment-form button[type="submit"]');
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.style.backgroundColor = '#ccc';
+    }
+    return
+}
+
 // Function to display comments in the list
 function displayComments(result, error=null) {
     // Autofill username input with saved username
@@ -103,15 +136,7 @@ function displayComments(result, error=null) {
     commentsListElement.innerHTML = '';
 
     if (error) {
-        console.error('Error fetching comments:', error);
-        const li = document.createElement('li');
-        li.innerHTML = '<strong>Error fetching comments.</strong> Please try again later.';
-        commentsListElement.appendChild(li);
-        const submitButton = document.querySelector('#comment-form button[type="submit"]');
-        if (submitButton) {
-            submitButton.disabled = true;
-            submitButton.style.backgroundColor = '#ccc';
-        }
+        displayCommentFetchError(error);
         return;
     }
 
@@ -268,13 +293,28 @@ async function handleCommentSubmission(event) {
 
     // Display and post the comment
     //displaySubmittedComment(commentObj)
-    postComment(commentObj, (result, error) => {
-        // Log the result or error
-        console.log('Comment posted'/*, result, error*/);
+    postComment(commentObj).then(
+        (response) => {
+            // Log the result or error
+            console.log('Comment posted'/*, response, response.body*/);
+            
 
-        // Display the updated comments list after posting
-        getCommentsByListingId(listingId, displayComments)
-    });
+            if (!response.ok) {
+                response.text()
+                    .then(responseBody => JSON.parse(responseBody))
+                    .then(unmarshalledBody => setErrorMessage(unmarshalledBody.error))
+                    .catch(error => setErrorMessage(error));
+            } else {
+                hideErrorField();
+            }
+
+            // Display the updated comments list after posting
+            getCommentsByListingId(listingId, displayComments)
+    })
+
+    /* .then(response => response.text())
+        .then(result => callbackFunc(result))
+        .catch(error => callbackFunc(null, error)); */
 
     // Clear the form fields after submission
     document.getElementById('comment-input').value = '';
@@ -360,6 +400,8 @@ async function postComment(commentObj, callbackFunc) {
     saveUsername(commentObj.username);
 
     // Collect comment data
+    let listingTitle = await getListingTitle();
+
     let listingId = await getListingID();
     if (!listingId) {
         console.error("No valid listing ID found in the current URL.");
@@ -371,6 +413,7 @@ async function postComment(commentObj, callbackFunc) {
     myHeaders.append("Content-Type", "application/x-www-form-urlencoded");
 
     var urlencoded = new URLSearchParams();
+    urlencoded.append("listing_title", listingTitle);
     urlencoded.append("listing_id", listingId);
     urlencoded.append("user_id", getLocalUserId());
     urlencoded.append("username", commentObj.username);
@@ -384,10 +427,7 @@ async function postComment(commentObj, callbackFunc) {
     };
 
     // Send POST request to the API
-    fetch(`${API_URL}/comments`, requestOptions)
-        .then(response => response.text())
-        .then(result => callbackFunc(result))
-        .catch(error => callbackFunc(null, error));
+    return fetch(`${API_URL}/comments`, requestOptions)
 }
 
 // getNewUserId retrieves a new V7 (Time-based) UUID from the API
@@ -415,4 +455,174 @@ function saveUsername(username) {
 // Retrieves the saved username from localStorage
 function getSavedUsername() {
     return window.localStorage.getItem('zillow_commenter_username') || '';
+}
+
+// Sets error message
+function setErrorMessage(errorText) {
+    const errorField = document.getElementById("error-field");
+    const errorMessage = document.getElementById("error-message");
+
+    errorMessage.innerHTML = errorText;
+
+    errorField.style.visibility = "visible";
+}
+
+// Hide error message 
+function hideErrorField() {
+    const errorField = document.getElementById("error-field");
+
+    errorField.style.visibility = "hidden";
+}
+
+
+// Add event listener for comment input validation (vanilla JS, multi-line support)
+document.getElementById('comment-input').addEventListener('keyup', function validateCommentInput() {
+    const errorMsg = "Must be letters, numbers, or punction.";
+    const textarea = this;
+    const pattern = new RegExp(textarea.getAttribute('pattern'));
+    let hasError = false;
+
+    // Print helpful debugging data
+    /* console.log("Regex pattern:",pattern);
+    // Print textarea.value encoded in ASCII hexadecimal
+    const asciiHex = Array.from(textarea.value)
+        .map(char => char.charCodeAt(0).toString(16).padStart(2, '0'))
+        .join(' ');
+    console.log("ASCII hex encoding:", asciiHex); */
+
+    // Check the regex pattern against the whole comment text
+    if (!pattern.test(textarea.value)) {
+        hasError = true;
+        console.log("Comment text has an error:\n\n",textarea.value,"\n");
+    }
+
+    /* Validate each line separately  (OLD METHOD)
+    const lines = textarea.value.split("\n");
+    let index = 0;
+    for (let line of lines) {
+        index++;
+        if (line == "") {
+            continue;
+        }
+        if (!pattern.test(line)) {
+            hasError = true;
+            console.log("Line #",index,":'"+line+"' has an error.");
+            break;
+        }
+    } */
+    //console.log("Comment field is valid:",!hasError);
+    if (typeof textarea.setCustomValidity === 'function') {
+        textarea.setCustomValidity(hasError ? errorMsg : '');
+    } else {
+        textarea.classList.toggle('error', hasError);
+        textarea.classList.toggle('ok', !hasError);
+        if (hasError) {
+            textarea.title = errorMsg;
+        } else {
+            textarea.removeAttribute('title');
+        }
+    }
+});
+
+// Modal popup logic for zillowette icon
+document.addEventListener('DOMContentLoaded', function() {
+    const icon = document.getElementById('zillowette-icon');
+    const modal = document.getElementById('icon-modal');
+    const input = document.getElementById('icon-modal-input');
+    const submitBtn = document.getElementById('icon-modal-submit');
+    const cancelBtn = document.getElementById('icon-modal-cancel');
+
+    if (!icon || !modal || !input || !submitBtn || !cancelBtn) return;
+
+    modal.style.display = 'none';
+
+    icon.addEventListener('click', function() {
+        if (modal.style.display != 'none') {
+            modal.style.display = 'none';
+        } else {
+            modal.style.display = 'flex';
+        }
+        input.value = '';
+        input.focus();
+    });
+
+    cancelBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+
+    submitBtn.addEventListener('click', function() {
+        const value = input.value.trim();
+        if (value !== '') {
+            // Set API address to input value
+            console.log("API URL set to:",setApiAddress(value));
+        }
+        modal.style.display = 'none';
+    });
+
+    // Optional: submit on Enter key
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            submitBtn.click();
+        }
+    });
+});
+
+function setApiAddress(apiAddress) {
+    API_ADDRESS = apiAddress;
+    API_URL = `${API_ADDRESS}/api/v1`;
+    
+    // Saves API address to local storage
+    window.localStorage.setItem("zillow_commenter_api_address", API_ADDRESS);
+
+    // Setting API address automatically refreshes comments
+    populateComments();
+    return API_URL;
+}
+
+document.addEventListener("keyup", (event) => {
+    if (event.altKey && event.key == "m") {
+        getListingTitle();
+    }
+});
+
+// Gets listing title from the injected content script
+async function getListingTitle() {
+    /* const {statusCode, title} = await chrome.runtime.sendMessage({
+        action: 'get_listing_title'
+    }); */
+
+    // Get current tab
+    const currentTabs = await chrome.tabs.query({active: true, lastFocusedWindow: true});    
+
+    if (currentTabs[0] == null) { 
+        console.error("Current tab is null when querying for listing title.");
+        throw new Error("Current tab is null when querying for listing title.");
+    }
+
+    // Query current tab's content script for a title
+    //console.log("Got current tabs:",tabs)
+    const response = await chrome.tabs.sendMessage(currentTabs[0].id, {action: "get_listing_title"});
+
+    if (chrome.runtime.lastError) {
+        // Called when an error occurs in getting the title
+        console.error("Content script not available:", chrome.runtime.lastError.message);
+        throw new Error("Content script not available:"+chrome.runtime.lastError.message);
+    } 
+
+    if (!response.title) {
+        console.error("Title not available in call.");
+        throw new Error("Title not available in call.");
+    }
+
+    // Called when response is recieved from content script
+    console.log("Got title:",response.title);
+
+    return sanitizeListingTitle(response.title)
+}
+
+// Sanitizes the listing title to only include printable ascii characters
+function sanitizeListingTitle(listingTitle) {
+    if (typeof listingTitle !== 'string') return '';
+    // Printable ASCII: 32 (space) to 126 (~)
+    return listingTitle.replace(/[^\x20-\x7E]+/g, '');
 }

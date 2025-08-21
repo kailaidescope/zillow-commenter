@@ -1,0 +1,490 @@
+package sqlc
+
+// ===================================================================================================================== //
+//                                             SQLC Usage Instructions                                                   //
+// ===================================================================================================================== //
+
+// MIGRATE
+
+// Using [golang-migrate](https://github.com/golang-migrate/migrate)
+
+// To run migrate commands (from backend folder):
+// migrate -path db/postgres/migrations -database "<connection_string>" -verbose <command_to_be_executed>
+
+// To create a new migration (from backend folder):
+// migrate create -ext sql -dir db/postgres/migrations -seq <name_of_migration>
+
+//
+
+// SQLC
+
+// Using [sqlc](https://github.com/sqlc-dev/sqlc)
+
+// sqlc generate
+// after having modified the query and schema files
+
+//
+
+// VALIDATOR
+
+// Using [golang validator](https://pkg.go.dev/github.com/go-playground/validator/v10#section-readme)
+
+// Allows for input validation on struct- or field-levels.
+
+//
+
+// BLUEMONDAY
+
+// Using [bluemonday](https://pkg.go.dev/github.com/microcosm-cc/bluemonday@v1.0.26)
+
+// Allows for HTML sanitization of user input, preventing XSS attacks.
+
+//
+
+// PLAYWRIGHT
+
+// Using [Playwright](https://pkg.go.dev/github.com/playwright-community/playwright-go#section-readme)
+
+// A headless browser for automating web interactions.
+
+// Used to validate Zillow listing ids.
+
+//
+
+// ===================================================================================================================== //
+//                                                 Real Code Below                                                       //
+// ===================================================================================================================== //
+
+import (
+	"errors"
+	"log"
+	"regexp"
+	"time"
+
+	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
+	_ "github.com/lib/pq"
+	"github.com/microcosm-cc/bluemonday"
+)
+
+// validateZillowListingExistence validates a Zillow listing ID by checking if it exist on zillow.com.
+// It uses playwright to open a headless browser and navigate to the Zillow listing page.
+//
+// Input:
+//   - listingId: the Zillow listing ID to validate, which should be a string of digits.
+//
+// Output:
+//   - bool: returns true if the listing ID is valid, false otherwise.
+//   - error: non-nil when an error occurs during the validation process, such as issues with Playwright or the browser.
+//
+// TODO: Make this function not blocked by Zillow's bot detection.
+/* func validateZillowListingExistence(listingId string) (bool, error) {
+	// Zillow listing IDs are numeric and are limited to 20 digits.
+	// This function assumes the listing ID has already been validated to be a number and within the correct range.
+
+	pw, err := playwright.Run()
+	if err != nil {
+		return false, errors.Join(errors.New("failed to start playwright"), err) // Return an error if Playwright could not be started.
+	}
+	defer pw.Stop()
+
+	// Launch a new browser instance using Playwright.
+	browser, err := pw.Chromium.Launch()
+	if err != nil {
+		return false, errors.Join(errors.New("failed to launch browser"), err) // Return an error if the browser could not be launched.
+	}
+	defer browser.Close()
+
+	// Create a new page in the browser.
+	page, err := browser.NewPage()
+	if err != nil {
+		return false, errors.Join(errors.New("failed to create new page"), err) // Return an error if the page could not be created.
+	}
+	defer page.Close()
+
+	// Open the Zillow listing page using the provided listing ID.
+	response, err := page.Goto("https://www.zillow.com/homedetails/" + listingId + "_zpid/")
+	if err != nil {
+		return false, errors.Join(errors.New("failed to open zillow listing page"), err) // Return an error if the page could not be loaded.
+	}
+
+	log.Println("Response for listing", listingId, ":", response)
+
+	// Check if the response status is 200 OK, indicating the page was successfully loaded.
+	if response.Status() != 200 {
+		if response.Status() == 403 {
+			log.Printf("listing %s is blocked by Zillow, possible bot detection, response status: %d", listingId, response.Status())
+		} else {
+			log.Printf("listing %s does not exist, response status: %d", listingId, response.Status())
+		}
+		return false, nil // Listing does not exist
+	}
+
+	return true, nil
+} */
+
+// PostCommentParams.Sanitize sanitizes the fields of the PostCommentParams struct using the provided sanitization policy.
+// Should always be called before inserting the struct into the database to ensure that all fields are sanitized.
+//
+// Input:
+//   - sanitizationPolicy: a bluemonday.Policy object that defines the sanitization rules to be applied.
+//
+// Output:
+//   - PostCommentParams: a new PostCommentParams struct with sanitized fields.
+func (postCommentParams PostCommentParams) Sanitize(sanitizationPolicy bluemonday.Policy) PostCommentParams {
+	// Fields to Sanitize:
+	//
+	// CommentID   pgtype.UUID
+	// ListingID   string
+	// UserIp      string
+	// UserID      string
+	// Username    string
+	// CommentText string
+
+	sanitizedCommentParams := postCommentParams
+
+	// Sanitize the string fields using the provided sanitization policy.
+
+	// CommentID is a pgtype.UUID (binary), and validated to ensure it is typed correctly, so no sanitization needed
+	sanitizedCommentParams.ListingID = sanitizationPolicy.Sanitize(sanitizedCommentParams.ListingID)
+	sanitizedCommentParams.UserIp = sanitizationPolicy.Sanitize(sanitizedCommentParams.UserIp)
+	sanitizedCommentParams.UserID = sanitizationPolicy.Sanitize(sanitizedCommentParams.UserID)
+	sanitizedCommentParams.Username = sanitizationPolicy.Sanitize(sanitizedCommentParams.Username)
+	sanitizedCommentParams.CommentText = sanitizationPolicy.Sanitize(sanitizedCommentParams.CommentText)
+
+	// Remove any unwanted content from Username and CommentText fields.
+	//
+	// Examples: emails, URLs, phone numbers
+
+	// Handle Username
+	sanitizedCommentParams.Username = removeLinks(sanitizedCommentParams.Username)
+	sanitizedCommentParams.Username = removeEmails(sanitizedCommentParams.Username)
+	sanitizedCommentParams.Username = removePhoneNumbers(sanitizedCommentParams.Username)
+
+	// Handle CommentText
+	sanitizedCommentParams.CommentText = removeLinks(sanitizedCommentParams.CommentText)
+	sanitizedCommentParams.CommentText = removeEmails(sanitizedCommentParams.CommentText)
+	sanitizedCommentParams.CommentText = removePhoneNumbers(sanitizedCommentParams.CommentText)
+
+	return sanitizedCommentParams
+}
+
+// PostCommentParamsValidation is the function registered with the API's Validator singleton
+// in order to validate the PostCommentParams struct. Tags are not added to the struct directly
+// because its code is auto-generated by SQLC and cannot be edited.
+//
+// Input:
+//   - sl: a validator object that allows this function to be registed as a custom struct validator.
+func PostCommentParamsValidation(sl validator.StructLevel) {
+	// Fields to validate:
+	//
+	// CommentID   pgtype.UUID
+	// ListingID   string
+	// UserIp      string
+	// UserID      string
+	// Username    string
+	// CommentText string
+
+	postCommentParams := sl.Current().Interface().(PostCommentParams)
+
+	// COMMENT ID
+
+	// Convert the comment ID from pgtype.UUID to uuid.UUID.
+	commentUUID, err := uuid.FromBytes(postCommentParams.CommentID.Bytes[:])
+	if err != nil {
+		// If the conversion fails, return an error indicating the format is invalid.
+		sl.ReportError(postCommentParams.CommentID, "CommentID", "CommentID", "uuid", "")
+	}
+
+	//log.Println("Validating CommentID:", commentUUID.String())
+
+	// TODO: check that this test ensures UUID is not empty and not invalid
+	// Example uuid : f81d4fae-7dec-11d0-a765-00a0c91e6bf6
+	commentIdValidation := "required,uuid"
+	err = sl.Validator().Var(commentUUID, commentIdValidation)
+	if err != nil || uuid.Validate(commentUUID.String()) != nil || customUUIDValidator(commentUUID) != nil {
+		sl.ReportError(postCommentParams.CommentID, "CommentID", "CommentID", commentIdValidation, "")
+	}
+
+	// LISTING ID
+
+	listingIdValidation := "required,number,excludes=.,min=1,max=20"
+	err = sl.Validator().Var(postCommentParams.ListingID, listingIdValidation)
+	if err != nil {
+		sl.ReportError(postCommentParams, "ListingID", "ListingID", listingIdValidation, "")
+	}
+
+	// USER IP
+
+	userIpValidation := "required,ip"
+	err = sl.Validator().Var(postCommentParams.UserIp, userIpValidation)
+	if err != nil {
+		sl.ReportError(postCommentParams, "UserIp", "UserIp", userIpValidation, "")
+	}
+
+	// USER ID
+
+	userIdValidation := "required,uuid"
+	userUUID, err := uuid.Parse(postCommentParams.UserID)
+	if err != nil {
+		// If the conversion fails, return an error indicating the format is invalid.
+		sl.ReportError(postCommentParams.UserID, "UserID", "UserID", "uuid", "")
+	}
+	err = sl.Validator().Var(postCommentParams.UserID, userIdValidation)
+	if err != nil || uuid.Validate(postCommentParams.UserID) != nil || customUUIDValidator(userUUID) != nil {
+		sl.ReportError(postCommentParams.UserID, "UserID", "UserID", userIdValidation, "")
+	}
+
+	// USERNAME
+
+	usernameValidation := "required,username,min=3,max=25"
+	err = sl.Validator().Var(postCommentParams.Username, usernameValidation)
+	if err != nil {
+		sl.ReportError(postCommentParams.Username, "Username", "Username", usernameValidation, "")
+	}
+
+	// COMMENT TEXT
+
+	commentTextValidation := "required,printasciiplusnewline,min=1,max=300"
+	err = sl.Validator().Var(postCommentParams.CommentText, commentTextValidation)
+	if err != nil {
+		sl.ReportError(postCommentParams.CommentText, "CommentText", "CommentText", commentTextValidation, "")
+	}
+
+	// LISTING TITLE
+
+	// Check that the pgtype is valid
+	if !postCommentParams.ListingTitle.Valid {
+		sl.ReportError(postCommentParams.ListingTitle.Valid, "ListingTitle", "Valid", "Title must be valid", "")
+	}
+	// Check that the string is valid
+	listingTitleValidation := "required,printascii,min=1,max=200"
+	err = sl.Validator().Var(postCommentParams.ListingTitle.String, listingTitleValidation)
+	if err != nil {
+		sl.ReportError(postCommentParams.ListingTitle.String, "ListingTitle", "String", listingTitleValidation, "")
+	}
+}
+
+// RegisterValidators is used to initialize the custom validation functions in sqlc.
+// Should be called by the server upon launch.
+//
+// Input:
+//   - validate: a validator singleton to register the custom validations on
+func RegisterValidators(validate *validator.Validate) {
+	// Registers PostCommentParams struct validator
+	validate.RegisterStructValidation(PostCommentParamsValidation, PostCommentParams{})
+
+	// Registers username validator
+	validate.RegisterValidation("username", customUsernameValidator)
+
+	// Registers printasciiplusnewline validator
+	validate.RegisterValidation("printasciiplusnewline", customPrintableAsciiPlusNewlineValidator)
+}
+
+// customUsernameValidator validates that text includes only alphanumeric symbols or
+// ' ', '.', ',', '_', and "-".
+//
+// Input:
+//   - fl: a representation of the Username field to be checked.
+//
+// Output:
+//   - bool: true if and only if the username matches the regex and the regex compiled correctly.
+func customUsernameValidator(fl validator.FieldLevel) bool {
+	expression := `^[A-Za-z0-9 ,._\-]+$` // This matches all alphanumeric characters, plus commas, periods, underscores, and dashes.
+	re, err := regexp.Compile(expression)
+	if err != nil {
+		log.Println("Error encountered when trying to compile the following regex:", expression, ".\nError:", err)
+		return false
+	}
+
+	return re.MatchString(fl.Field().String())
+}
+
+// customPrintableAsciiPlusNewlineValidator validates text to only include printable ascii and newlines.
+//
+// Input:
+//   - fl: a validator representation of the CommentText field.
+//
+// Output:
+//   - bool: true iff the comment matches the regex and the regex compiled correctly.
+func customPrintableAsciiPlusNewlineValidator(fl validator.FieldLevel) bool {
+	expression := `^[\x20-\x7E\x0A]+$` // This matches all printable ascii, plus newlines.
+	re, err := regexp.Compile(expression)
+	if err != nil {
+		log.Println("Error encountered when trying to compile the following regex:", expression, ".\nError:", err)
+		return false
+	}
+
+	return re.MatchString(fl.Field().String())
+}
+
+// customUUIDValidator runs extra checks to ensure that a V7 UUID is valid.
+// It primarily checks to ensure that the time component of the UUID is logical,
+// and that the version is correct.
+//
+// Input:
+//   - uuid: the UUID to validate.
+//
+// Output:
+//   - error: returns nil if the UUID is valid, or an error if it is not.
+func customUUIDValidator(uuid uuid.UUID) error {
+	// VALIDATE TIMESTAMP
+
+	uuidTimestamp := getUUIDTimestamp(uuid)
+
+	// Define the past and future reference times for validation.
+
+	// (Tue May 27 2025 23:53:20 GMT+0000)
+	pastReferenceTime := time.Unix(1748390000, 0)
+
+	// 10 hours in the future
+	futureReferenceTime := time.Now().Add(10 * time.Hour)
+
+	// Check uuid's timestamp against reference timestamps
+	if uuidTimestamp.Before(pastReferenceTime) || uuidTimestamp.After(futureReferenceTime) {
+		return errors.New("UUID time component is not within the valid range")
+	}
+
+	// VERSION CHECK
+
+	if uuid.Version() != 7 {
+		return errors.New("UUID version is not 7")
+	}
+
+	return nil
+}
+
+// getUUIDTimestamp extracts the timestamp from a V7 UUID and converts it to a time.Time object.
+//
+// Input:
+//   - uuid: the UUID from which to extract the timestamp.
+//
+// Output:
+//   - time.Time: the timestamp extracted from the UUID, represented as a time.Time object
+func getUUIDTimestamp(uuid uuid.UUID) time.Time {
+	// Check the time component of the UUID.
+	uuidByteTimeComponent := uuid[0:6]
+
+	// Convert 6 bytes to uint64 by shifting
+	var intTimestamp uint64
+	for i := 0; i < 6; i++ {
+		intTimestamp = (intTimestamp << 8) | uint64(uuidByteTimeComponent[i])
+	}
+
+	convertedTimestamp := time.UnixMilli(int64(intTimestamp))
+
+	return convertedTimestamp
+}
+
+// ================================================================================================================== //
+//                                                    Helpers                                                         //
+// ================================================================================================================== //
+
+// removeLinks is a helper function that removes URLs and links from a given string.
+// It uses a regular expression to match and remove most common URL formats (http, https,
+// and www).
+//
+// Input:
+//   - input: the string from which to remove links.
+//
+// Output:
+//   - string: the input string with links removed.
+func removeLinks(input string) string {
+	// Regex pattern to match URLs (http, https, www), including bare protocols
+	re := regexp.MustCompile(`(?i)(https?://(?:[\w\-._~:/?#\[\]@!$&'()*+,;=%]+)?|www\.[\w\-._~:/?#\[\]@!$&'()*+,;=%]+)([.,])?`)
+	return re.ReplaceAllStringFunc(input, func(match string) string {
+		// Preserve trailing punctuation if present
+		if len(match) > 0 {
+			last := match[len(match)-1]
+			if last == '.' || last == ',' {
+				return "[link removed]" + string(last)
+			}
+		}
+		return "[link removed]"
+	})
+}
+
+// removeEmails is a helper function that removes email addresses from a given string.
+// It uses a regular expression to match and remove most common email formats.
+//
+// Input:
+//   - input: the string from which to remove email addresses.
+//
+// Output:
+//   - string: the input string with email addresses removed.
+func removeEmails(input string) string {
+	// Regex pattern to match most email addresses
+	re := regexp.MustCompile(`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`)
+	return re.ReplaceAllString(input, "[email removed]")
+}
+
+// removePhoneNumbers is a helper function that removes phone numbers from a given string.
+// It uses a regular expression to match and remove common phone number formats (US-centric).
+//
+// Input:
+//   - input: the string from which to remove phone numbers.
+//
+// Output:
+//   - string: the input string with phone numbers removed.
+func removePhoneNumbers(input string) string {
+	// Regex pattern to match phone numbers with at least 8 digits (international and local)
+	re := regexp.MustCompile(`(?i)(\+?\d{1,3}[\s.-]?)?(\(?\d{1,4}\)?[\s.-]?)?(\d{1,4}[\s.-]?){1,4}\d{2,}`)
+	return re.ReplaceAllStringFunc(input, func(match string) string {
+		digits := regexp.MustCompile(`\d`).FindAllString(match, -1)
+		if len(digits) >= 8 {
+			return "[phone number removed]"
+		}
+		return match
+	})
+}
+
+// ================================================================================================================== //
+//                                                Old Code Below                                                      //
+// ================================================================================================================== //
+
+// EXAMPLE VALIDATOR USAGE
+
+/* // User contains user information
+type User struct {
+	FirstName      string     `validate:"required"`
+	LastName       string     `validate:"required"`
+	Age            uint8      `validate:"gte=0,lte=130"`
+	Email          string     `validate:"required,email"`
+	Gender         string     `validate:"oneof=male female prefer_not_to"`
+	FavouriteColor string     `validate:"iscolor"`                // alias for 'hexcolor|rgb|rgba|hsl|hsla'
+	Addresses      []*Address `validate:"required,dive,required"` // a person can have a home and cottage...
+}
+
+// Address houses a users address information
+type Address struct {
+	Street string `validate:"required"`
+	City   string `validate:"required"`
+	Planet string `validate:"required"`
+	Phone  string `validate:"required"`
+} */
+
+//
+
+//
+
+// Example of how to use Transactions with SQLC
+
+/* // returns a queries struct that can be used to execute queries and a
+// function to close the connection linked to it
+func GetConnection() (*pgx.Conn, error) {
+	godotenv.Load()
+	connStr := os.Getenv("CONNECTION_STRING")
+	conn, err := pgx.Connect(context.Background(), connStr)
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
+} */
+
+// use tx.Commit() if there are no errors at the end of the transaction
+// if error call tx.Rollback()
+// tx.Rollback() can be defered since if Commit is called first then rollback has no effect
+
+// queries := New(conn)
+
+// tx, err := conn.Begin(ctx)

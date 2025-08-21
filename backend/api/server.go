@@ -1,61 +1,155 @@
 // The api package contains the server and its routes for the application.
 package api
 
+// =============================================================================================================== //
+//                                            Dependency Overview                                                  //
+// =============================================================================================================== //
+
+// GIN
+
+// [Documentation](https://github.com/gin-gonic/gin)
+
+// Used to create a simple web API to be hosted on AWS.
+
+//
+
+// AWS-LAMBDA-GO-API-PROXY
+
+// [Documentation](https://github.com/awslabs/aws-lambda-go-api-proxy)
+
+// Used to interpret AWS Gateway and Lambda events in the backend API.
+
+// [ginadapter gin documentation](https://github.com/awslabs/aws-lambda-go-api-proxy?tab=readme-ov-file#api-gateway-context-and-stage-variables)
+// [ginadapter core documentation](https://pkg.go.dev/github.com/awslabs/aws-lambda-go-api-proxy@v0.16.2/core#RequestAccessor)
+
+// Used to get client info from AWS Gateway, such as the client's IP address.
+
+//
+
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 
-	"zillow-commenter.com/m/api/models"
+	"zillow-commenter.com/m/db/postgres/sqlc"
 	"zillow-commenter.com/m/token"
 
 	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
+	"github.com/microcosm-cc/bluemonday"
 )
 
 type Server struct {
-	Router        *gin.Engine
-	LambdaAdapter *ginadapter.GinLambda
-	maker         *token.PasetoMaker
-	pool          *pgxpool.Pool
+	Router            *gin.Engine
+	LambdaAdapter     *ginadapter.GinLambda
+	Validator         *validator.Validate
+	SantizationPolicy *bluemonday.Policy
+	maker             *token.PasetoMaker
+	pool              *pgxpool.Pool
 }
 
 func (server *Server) GetPostgresPool() *pgxpool.Pool {
 	return server.pool
 }
 
-func GetNewServer() (*Server, error) {
-	//load env vars
-	godotenv.Load()
+// DBOptions defines the allowed database connection options for the server.
+type DBOptions string
+
+const (
+	Production DBOptions = "production"
+	Test       DBOptions = "test"
+)
+
+// GetNewServer creates a new Server instance with all necessary dependencies initialized.
+//
+// Input:
+//   - dbOptions: A enum containing database connection options. Allowed values are ["production", "test"]
+func GetNewServer(dbOptions DBOptions) (*Server, error) {
+	// Load env vars (NOT NECESSARY FOR AWS LAMBDA)
+	/* err := godotenv.Load()
+	if err != nil {
+		return nil, errors.Join(errors.New("could not load environment variables"), err)
+	} */
+
+	// TOKEN MAKER
+
 	key := os.Getenv("TOKEN_KEY")
 	tokenMaker, err := token.NewPasetoMaker(key)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(errors.New("could not create token maker"), err)
 	}
 
-	pool, err := pgxpool.New(context.Background(), os.Getenv("CONNECTION_STRING"))
-	if err != nil {
-		return nil, err
+	// POSTGRES CONNECTION
+
+	// Deny invalid dbOptions
+	if dbOptions != Production && dbOptions != Test {
+		return nil, errors.New("invalid dbOptions provided, must be either 'production' or 'test'")
 	}
 
+	// Create a new connection pool to the PostgreSQL database based on the dbOptions
+	var pool *pgxpool.Pool
+	switch dbOptions {
+	case Test:
+		pool, err = pgxpool.New(context.Background(), os.Getenv("POSTGRES_CONNECTION_STRING_TEST"))
+		if err != nil {
+			return nil, errors.Join(errors.New("could not connect to the test database"), err)
+		}
+	case Production:
+		pool, err = pgxpool.New(context.Background(), os.Getenv("CONNECTION_STRING"))
+		if err != nil {
+			return nil, errors.Join(errors.New("could not connect to the production database"), err)
+		}
+	default:
+		return nil, errors.New("cannot start server with option that is not 'Production' or 'Test'")
+	}
+
+	// ROUTER
+
+	// Create a new Gin router
 	router := gin.Default()
 	// Set up CORS middleware to allow all origins, methods, and headers
 	router.Use(cors.Default())
 
+	// VALIDATOR
+
+	// Set up the validator with required struct validation enabled
+	validate := validator.New(validator.WithRequiredStructEnabled())
+
+	// Register custom validations for structs and fields
+	sqlc.RegisterValidators(validate)
+
+	// SANITIZER
+
+	// Initialize bluemonday sanitization policy
+	//
+	// We use the strict policy because there should be no reason to include *ANY* HTML in our comments
+	sanitizationPolicy := bluemonday.StrictPolicy()
+
+	// Collect server singleton variables
 	server := &Server{
-		Router: router,
-		maker:  tokenMaker,
-		pool:   pool,
+		Router:            router,
+		Validator:         validate,
+		SantizationPolicy: sanitizationPolicy,
+		maker:             tokenMaker,
+		pool:              pool,
 	}
+
+	// PLAYWRIGHT (DOES NOT WORK ON AWS LAMBDA)
+
+	/* err = playwright.Install()
+	if err != nil {
+		return nil, errors.Join(errors.New("could not install playwright"), err)
+	} */
 
 	// =============================================================================================================== //
 	//                                             Mount routes below                                                  //
 	// =============================================================================================================== //
 
-	// Top-leve api routes
+	// Top-level api routes
 	api := router.Group("/api")
 	{
 		// Gives information about the API in general, particularly about how to switch between versions
@@ -89,7 +183,7 @@ func GetNewServer() (*Server, error) {
 	//                                             End of mounting routes                                              //
 	// =============================================================================================================== //
 
-	models.InitTempCommentDB() // Initialize the temporary comment database
+	//models.InitTempCommentDB() // Initialize the temporary comment database
 
 	server.LambdaAdapter = ginadapter.New(router)
 

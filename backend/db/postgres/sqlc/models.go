@@ -18,11 +18,12 @@ type Blacklist struct {
 }
 
 type Comment struct {
-	CommentID   pgtype.UUID
-	ListingID   string
-	UserIp      string
-	UserID      string
-	Username    string
-	CommentText string
-	DateCreated pgtype.Timestamp
+	CommentID    pgtype.UUID
+	ListingID    string
+	UserIp       string
+	UserID       string
+	Username     string
+	CommentText  string
+	DateCreated  pgtype.Timestamp
+	ListingTitle pgtype.Text
 }

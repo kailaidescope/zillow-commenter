@@ -12,19 +12,20 @@ import (
 )
 
 const getCommentsByListingID = `-- name: GetCommentsByListingID :many
-SELECT comment_id, listing_id, user_ip, user_id, username, comment_text, EXTRACT(EPOCH FROM date_created) FROM comments
+SELECT comment_id, listing_id, user_ip, user_id, username, comment_text, EXTRACT(EPOCH FROM date_created), listing_title FROM comments
 WHERE listing_id = $1
 ORDER BY date_created DESC
 `
 
 type GetCommentsByListingIDRow struct {
-	CommentID   pgtype.UUID
-	ListingID   string
-	UserIp      string
-	UserID      string
-	Username    string
-	CommentText string
-	Extract     pgtype.Numeric
+	CommentID    pgtype.UUID
+	ListingID    string
+	UserIp       string
+	UserID       string
+	Username     string
+	CommentText  string
+	Extract      pgtype.Numeric
+	ListingTitle pgtype.Text
 }
 
 func (q *Queries) GetCommentsByListingID(ctx context.Context, listingID string) ([]GetCommentsByListingIDRow, error) {
@@ -44,6 +45,7 @@ func (q *Queries) GetCommentsByListingID(ctx context.Context, listingID string) 
 			&i.Username,
 			&i.CommentText,
 			&i.Extract,
+			&i.ListingTitle,
 		); err != nil {
 			return nil, err
 		}
@@ -56,28 +58,30 @@ func (q *Queries) GetCommentsByListingID(ctx context.Context, listingID string) 
 }
 
 const postComment = `-- name: PostComment :one
-INSERT INTO comments (comment_id, listing_id, user_ip, user_id, username, comment_text)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING comment_id, listing_id, user_ip, user_id, username, comment_text, EXTRACT(EPOCH FROM date_created)
+INSERT INTO comments (comment_id, listing_id, user_ip, user_id, username, comment_text, listing_title)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING comment_id, listing_id, user_ip, user_id, username, comment_text, EXTRACT(EPOCH FROM date_created), listing_title
 `
 
 type PostCommentParams struct {
-	CommentID   pgtype.UUID
-	ListingID   string
-	UserIp      string
-	UserID      string
-	Username    string
-	CommentText string
+	CommentID    pgtype.UUID
+	ListingID    string
+	UserIp       string
+	UserID       string
+	Username     string
+	CommentText  string
+	ListingTitle pgtype.Text
 }
 
 type PostCommentRow struct {
-	CommentID   pgtype.UUID
-	ListingID   string
-	UserIp      string
-	UserID      string
-	Username    string
-	CommentText string
-	Extract     pgtype.Numeric
+	CommentID    pgtype.UUID
+	ListingID    string
+	UserIp       string
+	UserID       string
+	Username     string
+	CommentText  string
+	Extract      pgtype.Numeric
+	ListingTitle pgtype.Text
 }
 
 func (q *Queries) PostComment(ctx context.Context, arg PostCommentParams) (PostCommentRow, error) {
@@ -88,6 +92,7 @@ func (q *Queries) PostComment(ctx context.Context, arg PostCommentParams) (PostC
 		arg.UserID,
 		arg.Username,
 		arg.CommentText,
+		arg.ListingTitle,
 	)
 	var i PostCommentRow
 	err := row.Scan(
@@ -98,6 +103,7 @@ func (q *Queries) PostComment(ctx context.Context, arg PostCommentParams) (PostC
 		&i.Username,
 		&i.CommentText,
 		&i.Extract,
+		&i.ListingTitle,
 	)
 	return i, err
 }
