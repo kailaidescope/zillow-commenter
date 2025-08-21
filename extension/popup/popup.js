@@ -594,6 +594,11 @@ async function getListingTitle() {
     // Get current tab
     const currentTabs = await chrome.tabs.query({active: true, lastFocusedWindow: true});    
 
+    if (currentTabs[0] == null) { 
+        console.error("Current tab is null when querying for listing title.");
+        throw new Error("Current tab is null when querying for listing title.");
+    }
+
     // Query current tab's content script for a title
     //console.log("Got current tabs:",tabs)
     const response = await chrome.tabs.sendMessage(currentTabs[0].id, {action: "get_listing_title"});
@@ -601,15 +606,23 @@ async function getListingTitle() {
     if (chrome.runtime.lastError) {
         // Called when an error occurs in getting the title
         console.error("Content script not available:", chrome.runtime.lastError.message);
-        return 
+        throw new Error("Content script not available:"+chrome.runtime.lastError.message);
     } 
 
     if (!response.title) {
         console.error("Title not available in call.");
+        throw new Error("Title not available in call.");
     }
 
     // Called when response is recieved from content script
     console.log("Got title:",response.title);
-    
-    return response.title
+
+    return sanitizeListingTitle(response.title)
+}
+
+// Sanitizes the listing title to only include printable ascii characters
+function sanitizeListingTitle(listingTitle) {
+    if (typeof listingTitle !== 'string') return '';
+    // Printable ASCII: 32 (space) to 126 (~)
+    return listingTitle.replace(/[^\x20-\x7E]+/g, '');
 }

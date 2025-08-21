@@ -245,7 +245,7 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 
 	// COMMENT TEXT
 
-	commentTextValidation := "required,commentText,min=1,max=300"
+	commentTextValidation := "required,printasciiplusnewline,min=1,max=300"
 	err = sl.Validator().Var(postCommentParams.CommentText, commentTextValidation)
 	if err != nil {
 		sl.ReportError(postCommentParams.CommentText, "CommentText", "CommentText", commentTextValidation, "")
@@ -261,7 +261,7 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 	listingTitleValidation := "required,printascii,min=1,max=200"
 	err = sl.Validator().Var(postCommentParams.ListingTitle.String, listingTitleValidation)
 	if err != nil {
-		sl.ReportError(postCommentParams.ListingTitle, "ListingTitle", "String", listingTitleValidation, "")
+		sl.ReportError(postCommentParams.ListingTitle.String, "ListingTitle", "String", listingTitleValidation, "")
 	}
 }
 
@@ -277,8 +277,8 @@ func RegisterValidators(validate *validator.Validate) {
 	// Registers username validator
 	validate.RegisterValidation("username", customUsernameValidator)
 
-	// Registers commentText validator
-	validate.RegisterValidation("commentText", customCommentValidator)
+	// Registers printasciiplusnewline validator
+	validate.RegisterValidation("printasciiplusnewline", customPrintableAsciiPlusNewlineValidator)
 }
 
 // customUsernameValidator validates that text includes only alphanumeric symbols or
@@ -300,14 +300,14 @@ func customUsernameValidator(fl validator.FieldLevel) bool {
 	return re.MatchString(fl.Field().String())
 }
 
-// customCommentValidator validates that posted comments only include printable ascii and newlines.
+// customPrintableAsciiPlusNewlineValidator validates text to only include printable ascii and newlines.
 //
 // Input:
 //   - fl: a validator representation of the CommentText field.
 //
 // Output:
 //   - bool: true iff the comment matches the regex and the regex compiled correctly.
-func customCommentValidator(fl validator.FieldLevel) bool {
+func customPrintableAsciiPlusNewlineValidator(fl validator.FieldLevel) bool {
 	expression := `^[\x20-\x7E\x0A]+$` // This matches all printable ascii, plus newlines.
 	re, err := regexp.Compile(expression)
 	if err != nil {

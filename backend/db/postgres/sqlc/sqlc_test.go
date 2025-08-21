@@ -1265,6 +1265,27 @@ func makeStringOfLength(n int) string {
 	return s
 }
 
+/* func TestAscii(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	//validate.Var("Input", "ascii")
+
+	t.Log("\n\nStarting validation test for printascii:\n")
+
+	err := validate.Var("54 Bethany Drive, Commack, NY 11725", "printascii")
+	if err != nil {
+		t.Error("Failed to validate ")
+	}
+
+	for i := 0; i <= 127; i++ {
+		err := validate.Var(string(rune(i)), "printascii")
+		if err != nil {
+			t.Log("  -  Error validating (ascii", i, ")")
+		}
+	}
+} */
+
 // ===================================================================================================================== //
 //                                        Custom UUID Validator Tests                                                    //
 // ===================================================================================================================== //
