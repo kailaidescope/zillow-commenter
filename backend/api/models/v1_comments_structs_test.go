@@ -159,6 +159,9 @@ func TestGenericRowToComment_ValidFakeRow(t *testing.T) {
 	if comment.ListingID != row.ListingID || comment.Username != row.Username {
 		t.Error("Unexpected comment fields: ", comment)
 	}
+	if comment.ListingTitle == nil || *comment.ListingTitle != row.ListingTitle.String {
+		t.Errorf("Expected ListingTitle '%s', got '%v'", row.ListingTitle.String, comment.ListingTitle)
+	}
 	log.Println("Successfully converted fake SQLC row struct to Comment:\n\n", comment, "\n\nfrom row:\n\n", row)
 }
 
@@ -264,6 +267,46 @@ func TestGenericRowToComment_TimestampFormat(t *testing.T) {
 	currentTime := time.Now().UnixMicro()
 	if convertedRow.Timestamp < currentTime-1000 || convertedRow.Timestamp > currentTime+1000 {
 		t.Error("Expected timestamp to be close to current time, ", currentTime, ", but got ", convertedRow.Timestamp)
+	}
+}
+
+// Test for ListingTitle with Valid=false (should be nil in Comment)
+func TestGenericRowToComment_ListingTitleInvalid(t *testing.T) {
+	row := defaultFakeRow()
+	row.ListingTitle = pgtype.Text{String: "should be nil", Valid: false}
+	comment, err := GenericSQLCRowToComment(row)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if comment.ListingTitle != nil {
+		t.Errorf("Expected ListingTitle to be nil, got %v", comment.ListingTitle)
+	}
+}
+
+// Test for missing ListingTitle field (should error)
+func TestGenericRowToComment_MissingListingTitle(t *testing.T) {
+	validFakeRow := defaultFakeRow()
+	type Incomplete struct {
+		CommentID   pgtype.UUID
+		ListingID   string
+		UserIp      string
+		UserID      string
+		Username    string
+		CommentText string
+		Extract     pgtype.Numeric
+	}
+	row := Incomplete{
+		CommentID:   validFakeRow.CommentID,
+		ListingID:   validFakeRow.ListingID,
+		UserIp:      validFakeRow.UserIp,
+		UserID:      validFakeRow.UserID,
+		Username:    validFakeRow.Username,
+		CommentText: validFakeRow.CommentText,
+		Extract:     validFakeRow.Extract,
+	}
+	_, err := GenericSQLCRowToComment(row)
+	if err == nil || err.Error() != "missing ListingTitle field" {
+		t.Error("Expected missing ListingTitle field error, got", err)
 	}
 }
 
