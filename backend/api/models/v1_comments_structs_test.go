@@ -312,72 +312,74 @@ func TestGenericRowToComment_MissingListingTitle(t *testing.T) {
 
 // --- (Comment) ToPostCommentRow tests ---
 
-func TestComment_ToPostCommentRow_Valid(t *testing.T) {
-	comment := defaultComment()
-	row := comment.ToPostCommentRow()
-	if row == nil {
+func checkToPostParamsConversion(comment Comment, postParams *sqlc.PostCommentParams, t *testing.T) {
+	if postParams == nil {
 		t.Error("Expected non-nil PostCommentRow")
 	}
-	if row.ListingID != comment.ListingID {
-		t.Error("Expected ListingID ", comment.ListingID, ", got ", row.ListingID)
+	if postParams.ListingID != comment.ListingID {
+		t.Error("Expected ListingID ", comment.ListingID, ", got ", postParams.ListingID)
 	}
-	if row.UserIp != comment.UserIP {
-		t.Error("Expected UserIp ", comment.UserIP, ", got ", row.UserIp)
+	if postParams.UserIp != comment.UserIP {
+		t.Error("Expected UserIp ", comment.UserIP, ", got ", postParams.UserIp)
 	}
-	if row.UserID != comment.UserID {
-		t.Error("Expected UserID ", comment.UserID, ", got ", row.UserID)
+	if postParams.UserID != comment.UserID {
+		t.Error("Expected UserID ", comment.UserID, ", got ", postParams.UserID)
 	}
-	if row.Username != comment.Username {
-		t.Error("Expected Username ", comment.Username, ", got ", row.Username)
+	if postParams.Username != comment.Username {
+		t.Error("Expected Username ", comment.Username, ", got ", postParams.Username)
 	}
-	if row.CommentText != comment.CommentText {
-		t.Error("Expected CommentText ", comment.CommentText, ", got ", row.CommentText)
+	if postParams.CommentText != comment.CommentText {
+		t.Error("Expected CommentText ", comment.CommentText, ", got ", postParams.CommentText)
 	}
-	if !row.CommentID.Valid {
+	if !postParams.CommentID.Valid {
 		t.Error("Expected valid CommentID")
 	}
-	if row.CommentID.Bytes != [16]byte(comment.CommentID) {
-		t.Error("Expected CommentID bytes ", [16]byte(comment.CommentID), ", got ", row.CommentID.Bytes)
+	if postParams.CommentID.Bytes != [16]byte(comment.CommentID) {
+		t.Error("Expected CommentID bytes ", [16]byte(comment.CommentID), ", got ", postParams.CommentID.Bytes)
 	}
-	if !row.Extract.Valid {
-		t.Error("Expected valid Extract field")
+	if (comment.ListingTitle == nil) == postParams.ListingTitle.Valid {
+		t.Error("Expected row.ListingTitle.Valid to be ", !postParams.ListingTitle.Valid, ", since comment.ListingTitle == nil is ", comment.ListingTitle == nil, ", but Valid=", postParams.ListingTitle.Valid)
 	}
-	if row.Extract.Int.Int64() != comment.Timestamp {
-		t.Error("Expected Extract ", comment.Timestamp, ", got ", row.Extract.Int.Int64())
+	if comment.ListingTitle != nil && *comment.ListingTitle != postParams.ListingTitle.String {
+		t.Error("Expected comment and row to have same listing title, but got comment.ListingTitle=", *comment.ListingTitle, " and row.ListingTitle.String=", postParams.ListingTitle.String)
 	}
 }
 
-func TestComment_ToPostCommentRow_UUIDBytes(t *testing.T) {
+func TestComment_ToPostCommentParams_Valid(t *testing.T) {
 	comment := defaultComment()
-	row := comment.ToPostCommentRow()
+	row := comment.ToPostCommentParams()
+
+	checkToPostParamsConversion(comment, row, t)
+}
+
+func TestComment_ToPostCommentParams_Valid_NilListingTitle(t *testing.T) {
+	comment := defaultComment()
+	comment.ListingTitle = nil
+	row := comment.ToPostCommentParams()
+
+	checkToPostParamsConversion(comment, row, t)
+}
+
+func TestComment_ToPostCommentParams_UUIDBytes(t *testing.T) {
+	comment := defaultComment()
+	row := comment.ToPostCommentParams()
 	expectedBytes := [16]byte(comment.CommentID)
 	if row.CommentID.Bytes != expectedBytes {
 		t.Error("Expected UUID bytes ", expectedBytes, ", got ", row.CommentID.Bytes)
 	}
 }
 
-func TestComment_ToPostCommentRow_TimestampConversion(t *testing.T) {
-	comment := defaultComment()
-	row := comment.ToPostCommentRow()
-	if !row.Extract.Valid {
-		t.Error("Expected valid Extract field")
-	}
-	if row.Extract.Int.Int64() != comment.Timestamp {
-		t.Error("Expected Extract ", comment.Timestamp, ", got ", row.Extract.Int.Int64())
-	}
-}
-
-func TestComment_ToPostCommentRow_NilReceiver(t *testing.T) {
+func TestComment_ToPostCommentParams_NilReceiver(t *testing.T) {
 	var comment *Comment
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("Expected panic when calling ToPostCommentRow on nil receiver")
 		}
 	}()
-	_ = comment.ToPostCommentRow()
+	_ = comment.ToPostCommentParams()
 }
 
-// --- CommentRowToComment tests ---
+// --- GetCommentRowToComment tests ---
 
 func TestCommentRowToComment_Valid(t *testing.T) {
 	row := defaultCommentRow()
@@ -435,9 +437,20 @@ func TestCommentRowToComment_TimestampFormat(t *testing.T) {
 	}
 }
 
-// --- CommentRowsToComments tests ---
+func TestGetCommentRowToComment_ListingTitle(t *testing.T) {
+	row := defaultCommentRow()
+	comment, err := GenericSQLCRowToComment(row)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if comment.ListingTitle == nil || *comment.ListingTitle != row.ListingTitle.String {
+		t.Errorf("Expected ListingTitle '%s', got '%v'", row.ListingTitle.String, comment.ListingTitle)
+	}
+}
 
-func TestCommentRowsToComments_Valid(t *testing.T) {
+// --- GetCommentRowsToComments tests ---
+
+func TestGetCommentRowsToComments_Valid(t *testing.T) {
 	row := defaultCommentRow()
 	rows := []sqlc.GetCommentsByListingIDRow{row}
 	comments, err := GetCommentRowsToComments(rows)
@@ -449,7 +462,7 @@ func TestCommentRowsToComments_Valid(t *testing.T) {
 	}
 }
 
-func TestCommentRowsToComments_InvalidRow(t *testing.T) {
+func TestGetCommentRowsToComments_InvalidRow(t *testing.T) {
 	row := defaultCommentRow()
 	badRow := defaultCommentRow()
 	badRow.Extract = pgtype.Numeric{Int: big.NewInt(1), Valid: false}
@@ -460,9 +473,24 @@ func TestCommentRowsToComments_InvalidRow(t *testing.T) {
 	}
 }
 
-// --- CommentToCommentRow and CommentsToCommentRows tests ---
+func TestGetCommentRowsToComments_ListingTitle(t *testing.T) {
+	row := defaultCommentRow()
+	rows := []sqlc.GetCommentsByListingIDRow{row}
+	comments, err := GenericSQLCRowsToComments(rows)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if len(comments) != 1 {
+		t.Fatalf("Expected 1 comment, got %d", len(comments))
+	}
+	if comments[0].ListingTitle == nil || *comments[0].ListingTitle != row.ListingTitle.String {
+		t.Errorf("Expected ListingTitle '%s', got '%v'", row.ListingTitle.String, comments[0].ListingTitle)
+	}
+}
 
-func TestCommentToCommentRow_AndBack(t *testing.T) {
+// --- CommentToGetCommentRow and CommentsToGetCommentRows tests ---
+
+func TestCommentToGetCommentRow_AndBack(t *testing.T) {
 	comment := defaultComment()
 	row := CommentToGetCommentRow(comment)
 	// Convert back to Comment
@@ -475,10 +503,45 @@ func TestCommentToCommentRow_AndBack(t *testing.T) {
 	}
 }
 
-func TestCommentsToCommentRows_Empty(t *testing.T) {
+func TestCommentToGetCommentRow_ListingTitle(t *testing.T) {
+	comment := defaultComment()
+	row := CommentToGetCommentRow(comment)
+	if row.ListingTitle.String != *comment.ListingTitle {
+		t.Errorf("Expected ListingTitle '%s', got '%s'", *comment.ListingTitle, row.ListingTitle.String)
+	}
+	if !row.ListingTitle.Valid {
+		t.Error("Expected ListingTitle to be valid")
+	}
+}
+
+func TestCommentToGetCommentRow_NilListingTitle(t *testing.T) {
+	comment := defaultComment()
+	comment.ListingTitle = nil
+	row := CommentToGetCommentRow(comment)
+	if row.ListingTitle.Valid {
+		t.Error("Expected ListingTitle to be invalid when Comment.ListingTitle is nil")
+	}
+}
+
+func TestCommentsToGetCommentRows_Empty(t *testing.T) {
 	rows := CommentsToGetCommentRows([]Comment{})
 	if len(rows) != 0 {
 		t.Errorf("Expected 0 rows, got %d", len(rows))
+	}
+}
+
+func TestCommentsToGetCommentRows_ListingTitle(t *testing.T) {
+	comment := defaultComment()
+	comments := []Comment{comment}
+	rows := CommentsToGetCommentRows(comments)
+	if len(rows) != 1 {
+		t.Fatalf("Expected 1 row, got %d", len(rows))
+	}
+	if rows[0].ListingTitle.String != *comment.ListingTitle {
+		t.Errorf("Expected ListingTitle '%s', got '%s'", *comment.ListingTitle, rows[0].ListingTitle.String)
+	}
+	if !rows[0].ListingTitle.Valid {
+		t.Error("Expected ListingTitle to be valid")
 	}
 }
 

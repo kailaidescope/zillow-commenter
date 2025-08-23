@@ -182,31 +182,32 @@ func GenericSQLCRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]Comment
 	return comments, nil
 }
 
-// ToPostCommentRow converts a Comment struct used by the API to a sqlc.PostCommentRow struct used by postgres.
+// ToPostCommentParams converts a Comment struct used by the API to a sqlc.PostCommentParams struct used by postgres to upload a comment.
 //
 // Input:
 //   - comment: a Comment struct containing the comment data.
 //
 // Output:
-//   - *sqlc.PostCommentRow: a pointer to a sqlc.PostCommentRow struct containing the comment data.
-func (comment *Comment) ToPostCommentRow() *sqlc.PostCommentRow {
+//   - *sqlc.PostCommentParams: a pointer to a sqlc.PostCommentParams struct containing postable comment data.
+func (comment *Comment) ToPostCommentParams() *sqlc.PostCommentParams {
 	// Convert go types to postgres types.
 
-	// Convert the timestamp to pgtype.Numeric.
-	extract := pgtype.Numeric{
-		Int:   big.NewInt(comment.Timestamp),
-		Valid: true,
+	// Convert ListingTitle
+	convertedListingTitle := pgtype.Text{Valid: false}
+	if comment.ListingTitle != nil {
+		convertedListingTitle.String = *comment.ListingTitle
+		convertedListingTitle.Valid = true
 	}
 
 	// Create a GetCommentsByListingIDRow struct from the Comment struct.
-	return &sqlc.PostCommentRow{
-		CommentID:   pgtype.UUID{Bytes: [16]byte(comment.CommentID), Valid: true},
-		ListingID:   comment.ListingID,
-		UserIp:      comment.UserIP,
-		UserID:      comment.UserID,
-		Username:    comment.Username,
-		CommentText: comment.CommentText,
-		Extract:     extract,
+	return &sqlc.PostCommentParams{
+		CommentID:    pgtype.UUID{Bytes: [16]byte(comment.CommentID), Valid: true},
+		ListingID:    comment.ListingID,
+		UserIp:       comment.UserIP,
+		UserID:       comment.UserID,
+		Username:     comment.Username,
+		CommentText:  comment.CommentText,
+		ListingTitle: convertedListingTitle,
 	}
 }
 
@@ -284,15 +285,23 @@ func CommentToGetCommentRow(comment Comment) *sqlc.GetCommentsByListingIDRow {
 		Valid: true,
 	}
 
+	// Convert the listing title to pgtype.Text
+	convertedListingTitle := pgtype.Text{Valid: false}
+	if comment.ListingTitle != nil {
+		convertedListingTitle.String = *comment.ListingTitle
+		convertedListingTitle.Valid = true
+	}
+
 	// Create a GetCommentsByListingIDRow struct from the Comment struct.
 	return &sqlc.GetCommentsByListingIDRow{
-		CommentID:   pgtype.UUID{Bytes: [16]byte(comment.CommentID), Valid: true},
-		ListingID:   comment.ListingID,
-		UserIp:      comment.UserIP,
-		UserID:      comment.UserID,
-		Username:    comment.Username,
-		CommentText: comment.CommentText,
-		Extract:     extract,
+		CommentID:    pgtype.UUID{Bytes: [16]byte(comment.CommentID), Valid: true},
+		ListingID:    comment.ListingID,
+		UserIp:       comment.UserIP,
+		UserID:       comment.UserID,
+		Username:     comment.Username,
+		CommentText:  comment.CommentText,
+		Extract:      extract,
+		ListingTitle: convertedListingTitle,
 	}
 }
 
