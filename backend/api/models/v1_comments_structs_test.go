@@ -175,6 +175,9 @@ func TestGenericRowToComment_ValidPostCommentRow(t *testing.T) {
 	if comment.ListingID != row.ListingID || comment.Username != row.Username {
 		t.Error("Unexpected comment fields: ", comment)
 	}
+	if comment.ListingTitle == nil || *comment.ListingTitle != row.ListingTitle.String {
+		t.Errorf("Expected ListingTitle '%s', got '%v'", row.ListingTitle.String, comment.ListingTitle)
+	}
 	log.Println("Successfully converted PostCommentRow to Comment:\n\n", comment, "\n\nfrom row:\n\n", row)
 }
 
@@ -187,6 +190,9 @@ func TestGenericRowToComment_ValidGetCommentRow(t *testing.T) {
 	}
 	if comment.ListingID != row.ListingID || comment.Username != row.Username {
 		t.Error("Unexpected comment fields: ", comment)
+	}
+	if comment.ListingTitle == nil || *comment.ListingTitle != row.ListingTitle.String {
+		t.Errorf("Expected ListingTitle '%s', got '%v'", row.ListingTitle.String, comment.ListingTitle)
 	}
 	log.Println("Successfully converted GetCommentRow to Comment:\n\n", comment, "\n\nfrom row:\n\n", row)
 }
@@ -437,14 +443,26 @@ func TestCommentRowToComment_TimestampFormat(t *testing.T) {
 	}
 }
 
-func TestGetCommentRowToComment_ListingTitle(t *testing.T) {
+func TestGetCommentRowToComment_ValidListingTitle(t *testing.T) {
 	row := defaultCommentRow()
-	comment, err := GenericSQLCRowToComment(row)
+	comment, err := GetCommentRowToComment(row)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 	if comment.ListingTitle == nil || *comment.ListingTitle != row.ListingTitle.String {
 		t.Errorf("Expected ListingTitle '%s', got '%v'", row.ListingTitle.String, comment.ListingTitle)
+	}
+}
+
+func TestGetCommentRowToComment_InalidListingTitle(t *testing.T) {
+	row := defaultCommentRow()
+	row.ListingTitle = pgtype.Text{String: "", Valid: false}
+	comment, err := GetCommentRowToComment(row)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if comment.ListingTitle != nil {
+		t.Errorf("Expected ListingTitle to be nil, since input pgtype is invalid, got '%v'", comment.ListingTitle)
 	}
 }
 
@@ -532,15 +550,15 @@ func TestCommentsToGetCommentRows_Empty(t *testing.T) {
 
 func TestCommentsToGetCommentRows_ListingTitle(t *testing.T) {
 	comment := defaultComment()
-	comments := []Comment{comment}
+	comments := []Comment{comment, comment}
 	rows := CommentsToGetCommentRows(comments)
-	if len(rows) != 1 {
-		t.Fatalf("Expected 1 row, got %d", len(rows))
+	if len(rows) != 2 {
+		t.Fatalf("Expected 2 rows, got %d", len(rows))
 	}
-	if rows[0].ListingTitle.String != *comment.ListingTitle {
-		t.Errorf("Expected ListingTitle '%s', got '%s'", *comment.ListingTitle, rows[0].ListingTitle.String)
+	if rows[1].ListingTitle.String != *comment.ListingTitle {
+		t.Errorf("Expected ListingTitle '%s', got '%s'", *comment.ListingTitle, rows[1].ListingTitle.String)
 	}
-	if !rows[0].ListingTitle.Valid {
+	if !rows[1].ListingTitle.Valid {
 		t.Error("Expected ListingTitle to be valid")
 	}
 }
@@ -564,5 +582,52 @@ func TestToResponseSlice(t *testing.T) {
 	}
 	if resps[0].TargetListing != comment.ListingID {
 		t.Errorf("Unexpected TargetListing: %s", resps[0].TargetListing)
+	}
+}
+
+// ================================================================================================================= //
+//                                          Helper function Tests                                                    //
+// ================================================================================================================= //
+
+// --- convertPGListingTitleToAPI and convertAPIListingTitleToPG tests ---
+
+func TestConvertPGListingTitleToAPI_Valid(t *testing.T) {
+	pgTitle := pgtype.Text{String: "Sample Title", Valid: true}
+	apiTitle := convertPGListingTitleToAPI(pgTitle)
+	if apiTitle == nil {
+		t.Fatal("Expected non-nil API title for valid pgtype.Text")
+	}
+	if *apiTitle != pgTitle.String {
+		t.Errorf("Expected API title '%s', got '%s'", pgTitle.String, *apiTitle)
+	}
+}
+
+func TestConvertPGListingTitleToAPI_Invalid(t *testing.T) {
+	pgTitle := pgtype.Text{String: "Should be nil", Valid: false}
+	apiTitle := convertPGListingTitleToAPI(pgTitle)
+	if apiTitle != nil {
+		t.Errorf("Expected nil API title for invalid pgtype.Text, got '%v'", *apiTitle)
+	}
+}
+
+func TestConvertAPIListingTitleToPG_NonNil(t *testing.T) {
+	apiTitle := aws.String("API Title")
+	pgTitle := convertAPIListingTitleToPG(apiTitle)
+	if !pgTitle.Valid {
+		t.Error("Expected pgtype.Text.Valid to be true for non-nil API title")
+	}
+	if pgTitle.String != *apiTitle {
+		t.Errorf("Expected pgtype.Text.String '%s', got '%s'", *apiTitle, pgTitle.String)
+	}
+}
+
+func TestConvertAPIListingTitleToPG_Nil(t *testing.T) {
+	var apiTitle *string = nil
+	pgTitle := convertAPIListingTitleToPG(apiTitle)
+	if pgTitle.Valid {
+		t.Error("Expected pgtype.Text.Valid to be false for nil API title")
+	}
+	if pgTitle.String != "" {
+		t.Errorf("Expected pgtype.Text.String to be empty for nil API title, got '%s'", pgTitle.String)
 	}
 }

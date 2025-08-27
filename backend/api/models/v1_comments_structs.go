@@ -13,6 +13,7 @@ import (
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -147,15 +148,7 @@ func GenericSQLCRowToComment(row interface{}) (*Comment, error) {
 	if !ok {
 		return nil, errors.New("missing ListingTitle field")
 	}
-	listingTitlePGWrapper := listingTitleField.Interface().(pgtype.Text)
-
-	// Set the listing title to nil unless listingTitlePGWrapper.Valid is true
-	var listingTitle *string = nil
-	if listingTitlePGWrapper.Valid {
-		listingTitle = &listingTitlePGWrapper.String
-	} else {
-		log.Println("Listing title was converted to nil from postgres type, since valid=false.")
-	}
+	listingTitle := convertPGListingTitleToAPI(listingTitleField.Interface().(pgtype.Text))
 
 	return &Comment{
 		ListingID:    listingID,
@@ -180,35 +173,6 @@ func GenericSQLCRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]Comment
 		comments = append(comments, *comment)
 	}
 	return comments, nil
-}
-
-// ToPostCommentParams converts a Comment struct used by the API to a sqlc.PostCommentParams struct used by postgres to upload a comment.
-//
-// Input:
-//   - comment: a Comment struct containing the comment data.
-//
-// Output:
-//   - *sqlc.PostCommentParams: a pointer to a sqlc.PostCommentParams struct containing postable comment data.
-func (comment *Comment) ToPostCommentParams() *sqlc.PostCommentParams {
-	// Convert go types to postgres types.
-
-	// Convert ListingTitle
-	convertedListingTitle := pgtype.Text{Valid: false}
-	if comment.ListingTitle != nil {
-		convertedListingTitle.String = *comment.ListingTitle
-		convertedListingTitle.Valid = true
-	}
-
-	// Create a GetCommentsByListingIDRow struct from the Comment struct.
-	return &sqlc.PostCommentParams{
-		CommentID:    pgtype.UUID{Bytes: [16]byte(comment.CommentID), Valid: true},
-		ListingID:    comment.ListingID,
-		UserIp:       comment.UserIP,
-		UserID:       comment.UserID,
-		Username:     comment.Username,
-		CommentText:  comment.CommentText,
-		ListingTitle: convertedListingTitle,
-	}
 }
 
 // GetCommentRowToComment converts a postgres database row from GetCommentsByListingID to a Comment struct used by the API.
@@ -243,15 +207,18 @@ func GetCommentRowToComment(row sqlc.GetCommentsByListingIDRow) (*Comment, error
 		return nil, errors.New("timestamp is not valid. should be greater than 1748389238, but is " + strconv.Itoa(int(timestamp)))
 	}
 
+	listingTitle := convertPGListingTitleToAPI(row.ListingTitle)
+
 	// Convert a database row to a Comment struct.
 	return &Comment{
-		ListingID:   row.ListingID,
-		CommentID:   commentUUID,
-		UserIP:      row.UserIp,
-		UserID:      row.UserID,
-		Username:    row.Username,
-		CommentText: row.CommentText,
-		Timestamp:   timestamp,
+		ListingID:    row.ListingID,
+		CommentID:    commentUUID,
+		UserIP:       row.UserIp,
+		UserID:       row.UserID,
+		Username:     row.Username,
+		CommentText:  row.CommentText,
+		Timestamp:    timestamp,
+		ListingTitle: listingTitle,
 	}, nil
 }
 
@@ -266,6 +233,28 @@ func GetCommentRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]Comment,
 		comments = append(comments, *comment)
 	}
 	return comments, nil
+}
+
+// ToPostCommentParams converts a Comment struct used by the API to a sqlc.PostCommentParams struct used by postgres to upload a comment.
+//
+// Input:
+//   - comment: a Comment struct containing the comment data.
+//
+// Output:
+//   - *sqlc.PostCommentParams: a pointer to a sqlc.PostCommentParams struct containing postable comment data.
+func (comment *Comment) ToPostCommentParams() *sqlc.PostCommentParams {
+	// Convert go types to postgres types.
+
+	// Create a GetCommentsByListingIDRow struct from the Comment struct.
+	return &sqlc.PostCommentParams{
+		CommentID:    pgtype.UUID{Bytes: [16]byte(comment.CommentID), Valid: true},
+		ListingID:    comment.ListingID,
+		UserIp:       comment.UserIP,
+		UserID:       comment.UserID,
+		Username:     comment.Username,
+		CommentText:  comment.CommentText,
+		ListingTitle: convertAPIListingTitleToPG(comment.ListingTitle),
+	}
 }
 
 // CommentToGetCommentRow converts a Comment struct used by the API to a sqlc.GetCommentsByListingIDRow struct used by postgres.
@@ -285,13 +274,6 @@ func CommentToGetCommentRow(comment Comment) *sqlc.GetCommentsByListingIDRow {
 		Valid: true,
 	}
 
-	// Convert the listing title to pgtype.Text
-	convertedListingTitle := pgtype.Text{Valid: false}
-	if comment.ListingTitle != nil {
-		convertedListingTitle.String = *comment.ListingTitle
-		convertedListingTitle.Valid = true
-	}
-
 	// Create a GetCommentsByListingIDRow struct from the Comment struct.
 	return &sqlc.GetCommentsByListingIDRow{
 		CommentID:    pgtype.UUID{Bytes: [16]byte(comment.CommentID), Valid: true},
@@ -301,7 +283,7 @@ func CommentToGetCommentRow(comment Comment) *sqlc.GetCommentsByListingIDRow {
 		Username:     comment.Username,
 		CommentText:  comment.CommentText,
 		Extract:      extract,
-		ListingTitle: convertedListingTitle,
+		ListingTitle: convertAPIListingTitleToPG(comment.ListingTitle),
 	}
 }
 
@@ -335,4 +317,46 @@ func ToResponseSlice(comments []Comment) []ResponseComment {
 	}
 
 	return response
+}
+
+// ================================================================================================================= //
+//                                              Helper functions                                                     //
+// ================================================================================================================= //
+
+// convertPGListingTitleToAPI converts a listing title from Postgres format to one the API can use.
+// Postgres format is pgtype.text, while the API uses *string.
+//
+// Input:
+//   - pgListingTitle: a pgtype.Text struct containing the listing title in Postgres format.
+//
+// Output:
+//   - *string: the listing title in API format, or nil if the input is invalid.
+func convertPGListingTitleToAPI(pgListingTitle pgtype.Text) *string {
+	// Set the listing title to nil unless listingTitlePGWrapper.Valid is true
+	var apiListingTitle *string = nil
+	if pgListingTitle.Valid {
+		apiListingTitle = aws.String(pgListingTitle.String)
+	} else {
+		log.Println("Listing title was converted to nil from postgres type, since valid=false.")
+	}
+
+	return apiListingTitle
+}
+
+// convertAPIListingTitleToPG converts a listing title from API format to Postgres format.
+// API format is *string, while Postgres format is pgtype.text.
+//
+// Input:
+//   - apiListingTitle: a *string containing the listing title in API format.
+//
+// Output:
+//   - pgtype.Text: the listing title in Postgres format.
+func convertAPIListingTitleToPG(apiListingTitle *string) pgtype.Text {
+	pgListingTitle := pgtype.Text{String: "", Valid: false}
+	if apiListingTitle != nil {
+		pgListingTitle.String = *apiListingTitle
+		pgListingTitle.Valid = true
+	}
+
+	return pgListingTitle
 }
