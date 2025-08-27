@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/joho/godotenv"
+
 	"zillow-commenter.com/m/api/models"
 	"zillow-commenter.com/m/db/postgres/sqlc"
 )

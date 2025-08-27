@@ -50,25 +50,26 @@ type Server struct {
 	SantizationPolicy *bluemonday.Policy
 	maker             *token.PasetoMaker
 	pool              *pgxpool.Pool
+	optionsMode       ServerOptions
 }
 
 func (server *Server) GetPostgresPool() *pgxpool.Pool {
 	return server.pool
 }
 
-// DBOptions defines the allowed database connection options for the server.
-type DBOptions string
+// ServerOptions defines the allowed database connection options for the server.
+type ServerOptions string
 
 const (
-	Production DBOptions = "production"
-	Test       DBOptions = "test"
+	Production ServerOptions = "production"
+	Test       ServerOptions = "test"
 )
 
 // GetNewServer creates a new Server instance with all necessary dependencies initialized.
 //
 // Input:
 //   - dbOptions: A enum containing database connection options. Allowed values are ["production", "test"]
-func GetNewServer(dbOptions DBOptions) (*Server, error) {
+func GetNewServer(serverOptions ServerOptions) (*Server, error) {
 	// Load env vars (NOT NECESSARY FOR AWS LAMBDA)
 	/* err := godotenv.Load()
 	if err != nil {
@@ -85,14 +86,14 @@ func GetNewServer(dbOptions DBOptions) (*Server, error) {
 
 	// POSTGRES CONNECTION
 
-	// Deny invalid dbOptions
-	if dbOptions != Production && dbOptions != Test {
-		return nil, errors.New("invalid dbOptions provided, must be either 'production' or 'test'")
+	// Deny invalid serverOptions
+	if serverOptions != Production && serverOptions != Test {
+		return nil, errors.New("invalid serverOptions provided, must be either 'production' or 'test'")
 	}
 
-	// Create a new connection pool to the PostgreSQL database based on the dbOptions
+	// Create a new connection pool to the PostgreSQL database based on the serverOptions
 	var pool *pgxpool.Pool
-	switch dbOptions {
+	switch serverOptions {
 	case Test:
 		pool, err = pgxpool.New(context.Background(), os.Getenv("POSTGRES_CONNECTION_STRING_TEST"))
 		if err != nil {
@@ -136,6 +137,7 @@ func GetNewServer(dbOptions DBOptions) (*Server, error) {
 		SantizationPolicy: sanitizationPolicy,
 		maker:             tokenMaker,
 		pool:              pool,
+		optionsMode:       serverOptions,
 	}
 
 	// PLAYWRIGHT (DOES NOT WORK ON AWS LAMBDA)
