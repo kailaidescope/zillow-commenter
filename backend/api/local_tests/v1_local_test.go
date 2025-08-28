@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -255,9 +254,6 @@ func runSanitizationTestCases(t *testing.T, replacementText string, cases []stru
 	t.Log("Running sanitization test cases for replacement:", replacementText)
 
 	for _, c := range cases {
-		// Random sleep to avoid rate limiting
-		time.Sleep(time.Duration(1+rand.Intn(3)) * time.Second)
-
 		// Create a new comment to send
 		v7, err := uuid.NewV7()
 		if err != nil {

@@ -35,7 +35,7 @@ func (server *Server) GetListingComments(c *gin.Context) {
 
 	// Get information from the request context
 	listingID := c.Param("listing_id")
-	userIP, err := getUserIP(c)
+	userIP, err := server.getUserIP(c)
 	if err != nil {
 		log.Println("Error getting user IP:", err)
 		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
@@ -81,7 +81,7 @@ func (server *Server) GetListingComments(c *gin.Context) {
 //   - 500: Internal server error if something goes wrong.
 func (server *Server) PostListingComment(c *gin.Context) {
 	// Get information from the request context
-	userIP, err := getUserIP(c)
+	userIP, err := server.getUserIP(c)
 	if err != nil {
 		log.Println("Error getting user IP:", err)
 		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
@@ -203,7 +203,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 //   - 200: A JSON object containing the generated user ID. ID is a V7 (Time) UUID.
 func (server *Server) GenerateUserID(c *gin.Context) {
 	// Get information from the request context
-	userIP, err := getUserIP(c)
+	userIP, err := server.getUserIP(c)
 	if err != nil {
 		log.Println("Error getting user IP:", err)
 		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
@@ -268,14 +268,20 @@ func (server Server) getComments(listingID string) ([]models.Comment, error) {
 }
 
 // getUserIP retrieves the user's IP address from the API Gateway context.
+// If the server mode is "test", the IP address is a placeholder, since the API Gateway is unavailable.
 //
 // Input:
+//   - server: the server whose instance is running.
 //   - c: The gin context containing the request.
 //
 // Output:
 //   - A pointer to a string containing the user's IP address.
 //   - An error if the API Gateway context does not contain a valid SourceIP.
-func getUserIP(c *gin.Context) (string, error) {
+func (server Server) getUserIP(c *gin.Context) (string, error) {
+	if server.optionsMode == Test {
+		return "0.0.0.0", nil
+	}
+
 	apiGatewayContext, ok := ginadaptercore.GetAPIGatewayContextFromContext(c.Request.Context())
 	if !ok {
 		return "", errors.New("failed to get API Gateway context from request context")
