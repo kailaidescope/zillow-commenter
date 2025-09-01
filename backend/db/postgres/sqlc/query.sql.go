@@ -12,7 +12,7 @@ import (
 )
 
 const getCommentsByListingID = `-- name: GetCommentsByListingID :many
-SELECT comment_id, listing_id, user_ip, user_id, username, comment_text, EXTRACT(EPOCH FROM date_created), listing_title FROM comments
+SELECT comment_id, listing_id, user_ip, user_id, username, comment_text, EXTRACT(EPOCH FROM date_created), listing_title, ip_nonce FROM comments
 WHERE listing_id = $1
 ORDER BY date_created DESC
 `
@@ -26,6 +26,7 @@ type GetCommentsByListingIDRow struct {
 	CommentText  string
 	Extract      pgtype.Numeric
 	ListingTitle pgtype.Text
+	IpNonce      pgtype.Text
 }
 
 func (q *Queries) GetCommentsByListingID(ctx context.Context, listingID string) ([]GetCommentsByListingIDRow, error) {
@@ -46,6 +47,7 @@ func (q *Queries) GetCommentsByListingID(ctx context.Context, listingID string) 
 			&i.CommentText,
 			&i.Extract,
 			&i.ListingTitle,
+			&i.IpNonce,
 		); err != nil {
 			return nil, err
 		}
@@ -58,9 +60,9 @@ func (q *Queries) GetCommentsByListingID(ctx context.Context, listingID string) 
 }
 
 const postComment = `-- name: PostComment :one
-INSERT INTO comments (comment_id, listing_id, user_ip, user_id, username, comment_text, listing_title)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING comment_id, listing_id, user_ip, user_id, username, comment_text, EXTRACT(EPOCH FROM date_created), listing_title
+INSERT INTO comments (comment_id, listing_id, user_ip, user_id, username, comment_text, listing_title, ip_nonce)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING comment_id, listing_id, user_ip, user_id, username, comment_text, EXTRACT(EPOCH FROM date_created), listing_title, ip_nonce
 `
 
 type PostCommentParams struct {
@@ -71,6 +73,7 @@ type PostCommentParams struct {
 	Username     string
 	CommentText  string
 	ListingTitle pgtype.Text
+	IpNonce      pgtype.Text
 }
 
 type PostCommentRow struct {
@@ -82,6 +85,7 @@ type PostCommentRow struct {
 	CommentText  string
 	Extract      pgtype.Numeric
 	ListingTitle pgtype.Text
+	IpNonce      pgtype.Text
 }
 
 func (q *Queries) PostComment(ctx context.Context, arg PostCommentParams) (PostCommentRow, error) {
@@ -93,6 +97,7 @@ func (q *Queries) PostComment(ctx context.Context, arg PostCommentParams) (PostC
 		arg.Username,
 		arg.CommentText,
 		arg.ListingTitle,
+		arg.IpNonce,
 	)
 	var i PostCommentRow
 	err := row.Scan(
@@ -104,6 +109,7 @@ func (q *Queries) PostComment(ctx context.Context, arg PostCommentParams) (PostC
 		&i.CommentText,
 		&i.Extract,
 		&i.ListingTitle,
+		&i.IpNonce,
 	)
 	return i, err
 }

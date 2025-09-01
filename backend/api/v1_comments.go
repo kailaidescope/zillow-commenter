@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
+	"zillow-commenter.com/m/encryption"
 
 	ginadaptercore "github.com/awslabs/aws-lambda-go-api-proxy/core"
 	"github.com/gin-gonic/gin"
@@ -145,7 +146,14 @@ func (server *Server) PostListingComment(c *gin.Context) {
 
 	// Encrypt the IP after validation
 
-	//server.aesCipherGCM
+	encryptedIpPackage, err := encryption.EncryptStringAESGCM(server.aesCipherGCM, newComment.UserIp)
+	if err != nil {
+		log.Println("Error encrypting UserIp:", err)
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
+	}
+
+	// TODO: Send this to the db
+	log.Println("Encrypted IP:", encryptedIpPackage)
 
 	// Acquire a Postgres connection from the pool
 	postgresConnection, err := server.GetPostgresPool().Acquire(context.TODO())

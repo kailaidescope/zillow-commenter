@@ -26,4 +26,5 @@ type Comment struct {
 	CommentText  string
 	DateCreated  pgtype.Timestamp
 	ListingTitle pgtype.Text
+	IpNonce      pgtype.Text
 }

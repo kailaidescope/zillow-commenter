@@ -35,6 +35,7 @@ type Comment struct {
 	CommentText  string    `json:"comment_text"`
 	Timestamp    int64     `json:"timestamp"`
 	ListingTitle *string   `json:"listing_title"`
+	IPNonce      *string   `json:"ip_nonce"`
 }
 
 // ResponseComment represents a comment on a listing that can be safely returned to the user.
@@ -148,7 +149,14 @@ func GenericSQLCRowToComment(row interface{}) (*Comment, error) {
 	if !ok {
 		return nil, errors.New("missing ListingTitle field")
 	}
-	listingTitle := convertPGListingTitleToAPI(listingTitleField.Interface().(pgtype.Text))
+	listingTitle := convertPGTextToString(listingTitleField.Interface().(pgtype.Text))
+
+	// Extract IPNonce
+	ipNonceField, ok := getFieldAndValidity("IpNonce")
+	if !ok {
+		return nil, errors.New("missing IpNonce field")
+	}
+	ipNonce := convertPGTextToString(ipNonceField.Interface().(pgtype.Text))
 
 	return &Comment{
 		ListingID:    listingID,
@@ -159,6 +167,7 @@ func GenericSQLCRowToComment(row interface{}) (*Comment, error) {
 		CommentText:  commentText,
 		Timestamp:    timestamp,
 		ListingTitle: listingTitle,
+		IPNonce:      ipNonce,
 	}, nil
 }
 
@@ -207,7 +216,9 @@ func GetCommentRowToComment(row sqlc.GetCommentsByListingIDRow) (*Comment, error
 		return nil, errors.New("timestamp is not valid. should be greater than 1748389238, but is " + strconv.Itoa(int(timestamp)))
 	}
 
-	listingTitle := convertPGListingTitleToAPI(row.ListingTitle)
+	listingTitle := convertPGTextToString(row.ListingTitle)
+
+	ipNonce := convertPGTextToString(row.IpNonce)
 
 	// Convert a database row to a Comment struct.
 	return &Comment{
@@ -219,6 +230,7 @@ func GetCommentRowToComment(row sqlc.GetCommentsByListingIDRow) (*Comment, error
 		CommentText:  row.CommentText,
 		Timestamp:    timestamp,
 		ListingTitle: listingTitle,
+		IPNonce:      ipNonce,
 	}, nil
 }
 
@@ -253,7 +265,8 @@ func (comment *Comment) ToPostCommentParams() *sqlc.PostCommentParams {
 		UserID:       comment.UserID,
 		Username:     comment.Username,
 		CommentText:  comment.CommentText,
-		ListingTitle: convertAPIListingTitleToPG(comment.ListingTitle),
+		ListingTitle: convertStringToPGText(comment.ListingTitle),
+		IpNonce:      convertStringToPGText(comment.IPNonce),
 	}
 }
 
@@ -283,7 +296,8 @@ func CommentToGetCommentRow(comment Comment) *sqlc.GetCommentsByListingIDRow {
 		Username:     comment.Username,
 		CommentText:  comment.CommentText,
 		Extract:      extract,
-		ListingTitle: convertAPIListingTitleToPG(comment.ListingTitle),
+		ListingTitle: convertStringToPGText(comment.ListingTitle),
+		IpNonce:      convertStringToPGText(comment.IPNonce),
 	}
 }
 
@@ -323,40 +337,40 @@ func ToResponseSlice(comments []Comment) []ResponseComment {
 //                                              Helper functions                                                     //
 // ================================================================================================================= //
 
-// convertPGListingTitleToAPI converts a listing title from Postgres format to one the API can use.
+// convertPGTextToString converts text from a Postgres format to one the API can use.
 // Postgres format is pgtype.text, while the API uses *string.
 //
 // Input:
-//   - pgListingTitle: a pgtype.Text struct containing the listing title in Postgres format.
+//   - pgtext: a pgtype.Text struct in Postgres format.
 //
 // Output:
-//   - *string: the listing title in API format, or nil if the input is invalid.
-func convertPGListingTitleToAPI(pgListingTitle pgtype.Text) *string {
-	// Set the listing title to nil unless listingTitlePGWrapper.Valid is true
-	var apiListingTitle *string = nil
-	if pgListingTitle.Valid {
-		apiListingTitle = aws.String(pgListingTitle.String)
+//   - *string: the text in API format (i.e. a string pointer), or nil if the input is invalid.
+func convertPGTextToString(pgtext pgtype.Text) *string {
+	// Set the string to nil unless pgtext.Valid is true
+	var convertedString *string = nil
+	if pgtext.Valid {
+		convertedString = aws.String(pgtext.String)
 	} else {
-		log.Println("Listing title was converted to nil from postgres type, since valid=false.")
+		log.Println("PGText was converted to nil from postgres type, since valid=false.")
 	}
 
-	return apiListingTitle
+	return convertedString
 }
 
-// convertAPIListingTitleToPG converts a listing title from API format to Postgres format.
+// convertStringToPGText converts a string from API format to Postgres format.
 // API format is *string, while Postgres format is pgtype.text.
 //
 // Input:
-//   - apiListingTitle: a *string containing the listing title in API format.
+//   - apiString: text in a *string (API format).
 //
 // Output:
-//   - pgtype.Text: the listing title in Postgres format.
-func convertAPIListingTitleToPG(apiListingTitle *string) pgtype.Text {
-	pgListingTitle := pgtype.Text{String: "", Valid: false}
-	if apiListingTitle != nil {
-		pgListingTitle.String = *apiListingTitle
-		pgListingTitle.Valid = true
+//   - pgtype.Text: the text in Postgres format.
+func convertStringToPGText(apiString *string) pgtype.Text {
+	convertedPgtext := pgtype.Text{String: "", Valid: false}
+	if apiString != nil {
+		convertedPgtext.String = *apiString
+		convertedPgtext.Valid = true
 	}
 
-	return pgListingTitle
+	return convertedPgtext
 }

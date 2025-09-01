@@ -1,9 +1,13 @@
+// The encryption package provides functions for easy encryption using AES without having to worry about the details.
+//
+// Based on a [blog post](https://www.twilio.com/en-us/blog/developers/community/encrypt-and-decrypt-data-in-go-with-aes-256) by twilio
 package encryption
 
 import (
 	"crypto/cipher"
 	"encoding/hex"
 	"errors"
+	"log"
 	"math/rand"
 	"os"
 	"testing"
@@ -254,5 +258,29 @@ func TestEncryptDecryptRoundTrip_InvalidNonce(t *testing.T) {
 	_, err = DecryptStringAESGCM(aesgcm, encryptedPackage)
 	if err == nil {
 		t.Errorf("Expected decryption to fail with tampered nonce, but it succeeded")
+	}
+}
+
+func TestBasicEncryption(t *testing.T) {
+	cleanup, aesgcm, err := SetupAndTeardownWithRealKey(t)
+	if err != nil {
+		t.Fatalf("SetupAndTeardownWithRealKey failed: %v", err)
+	}
+	defer cleanup(t)
+
+	input := "127.0.0.1"
+	encryptedPackage, err := EncryptStringAESGCM(aesgcm, input)
+	if err != nil {
+		t.Fatalf("Encryption failed: %v", err)
+	}
+	log.Println("Encrypted hex string (", len(encryptedPackage.encryptedHexString), "):", encryptedPackage.encryptedHexString)
+	log.Println("Encrypted hex string (", len(encryptedPackage.nonceHexString), "):", encryptedPackage.nonceHexString)
+	decrypted, err := DecryptStringAESGCM(aesgcm, encryptedPackage)
+	if err != nil {
+		t.Fatalf("Decryption failed: %v", err)
+	}
+	log.Println("Decrypted string (", len(decrypted), "):", decrypted)
+	if decrypted != input {
+		t.Errorf("Round-trip failed: got %q, want %q", decrypted, input)
 	}
 }

@@ -30,6 +30,7 @@ type fakeRow struct {
 	CommentText  string
 	Extract      pgtype.Numeric
 	ListingTitle pgtype.Text
+	IpNonce      pgtype.Text
 }
 
 // validPgtypeUUID generates a valid pgtype.UUID for testing.
@@ -68,12 +69,13 @@ func defaultFakeRow() fakeRow {
 	return fakeRow{
 		CommentID:    commentID,
 		ListingID:    "1234567",
-		UserIp:       "127.0.0.1",
+		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "tester",
 		CommentText:  "hello",
 		Extract:      validPgtypeNumeric(time.Now().UnixMicro()),
 		ListingTitle: pgtype.Text{String: "test title", Valid: true},
+		IpNonce:      pgtype.Text{String: "96dc49a63b34dcf9229c0ed5", Valid: true},
 	}
 }
 
@@ -84,12 +86,13 @@ func defaultPostCommentRow() sqlc.PostCommentRow {
 	return sqlc.PostCommentRow{
 		CommentID:    commentID,
 		ListingID:    "1234567",
-		UserIp:       "127.0.0.1",
+		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "tester",
 		CommentText:  "hello",
 		Extract:      validPgtypeNumeric(time.Now().UnixMicro()),
 		ListingTitle: pgtype.Text{String: "test title", Valid: true},
+		IpNonce:      pgtype.Text{String: "96dc49a63b34dcf9229c0ed5", Valid: true},
 	}
 }
 
@@ -100,12 +103,13 @@ func defaultGetCommentRow() sqlc.GetCommentsByListingIDRow {
 	return sqlc.GetCommentsByListingIDRow{
 		CommentID:    commentID,
 		ListingID:    "1234567",
-		UserIp:       "127.0.0.1",
+		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "tester",
 		CommentText:  "hello",
 		Extract:      validPgtypeNumeric(time.Now().UnixMicro()),
 		ListingTitle: pgtype.Text{String: "test title", Valid: true},
+		IpNonce:      pgtype.Text{String: "96dc49a63b34dcf9229c0ed5", Valid: true},
 	}
 }
 
@@ -117,12 +121,13 @@ func defaultCommentRow() sqlc.GetCommentsByListingIDRow {
 	return sqlc.GetCommentsByListingIDRow{
 		CommentID:    commentID,
 		ListingID:    "listing",
-		UserIp:       "ip",
+		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "name",
 		CommentText:  "text",
 		Extract:      validPgtypeNumeric(time.Now().UnixMicro()),
 		ListingTitle: pgtype.Text{String: "test title", Valid: true},
+		IpNonce:      pgtype.Text{String: "96dc49a63b34dcf9229c0ed5", Valid: true},
 	}
 }
 
@@ -134,12 +139,13 @@ func defaultComment() Comment {
 	return Comment{
 		ListingID:    "listing",
 		CommentID:    id,
-		UserIP:       "ip",
+		UserIP:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       "user",
 		Username:     "name",
 		CommentText:  "text",
 		Timestamp:    time.Now().UnixMicro(),
 		ListingTitle: aws.String("test title"),
+		IPNonce:      aws.String("96dc49a63b34dcf9229c0ed5"),
 	}
 }
 
@@ -217,22 +223,26 @@ func TestGenericRowToComment_MissingField(t *testing.T) {
 func TestGenericRowToComment_InvalidUUIDType(t *testing.T) {
 	row := defaultFakeRow()
 	type BadUUID struct {
-		CommentID   string
-		ListingID   string
-		UserIp      string
-		UserID      string
-		Username    string
-		CommentText string
-		Extract     pgtype.Numeric
+		CommentID    string
+		ListingID    string
+		UserIp       string
+		UserID       string
+		Username     string
+		CommentText  string
+		Extract      pgtype.Numeric
+		ListingTitle pgtype.Text
+		IpNonce      pgtype.Text
 	}
 	badRow := BadUUID{
-		CommentID:   "not-a-uuid",
-		ListingID:   row.ListingID,
-		UserIp:      row.UserIp,
-		UserID:      row.UserID,
-		Username:    row.Username,
-		CommentText: row.CommentText,
-		Extract:     row.Extract,
+		CommentID:    "not-a-uuid",
+		ListingID:    row.ListingID,
+		UserIp:       row.UserIp,
+		UserID:       row.UserID,
+		Username:     row.Username,
+		CommentText:  row.CommentText,
+		Extract:      row.Extract,
+		ListingTitle: row.ListingTitle,
+		IpNonce:      row.IpNonce,
 	}
 	convertedRow, err := GenericSQLCRowToComment(badRow)
 	if err == nil {
@@ -300,6 +310,7 @@ func TestGenericRowToComment_MissingListingTitle(t *testing.T) {
 		Username    string
 		CommentText string
 		Extract     pgtype.Numeric
+		IpNonce     pgtype.Text
 	}
 	row := Incomplete{
 		CommentID:   validFakeRow.CommentID,
@@ -309,10 +320,40 @@ func TestGenericRowToComment_MissingListingTitle(t *testing.T) {
 		Username:    validFakeRow.Username,
 		CommentText: validFakeRow.CommentText,
 		Extract:     validFakeRow.Extract,
+		IpNonce:     validFakeRow.IpNonce,
 	}
 	_, err := GenericSQLCRowToComment(row)
 	if err == nil || err.Error() != "missing ListingTitle field" {
 		t.Error("Expected missing ListingTitle field error, got", err)
+	}
+}
+
+// Test for missing IpNonce field (should error)
+func TestGenericRowToComment_MissingIpNonce(t *testing.T) {
+	validFakeRow := defaultFakeRow()
+	type Incomplete struct {
+		CommentID    pgtype.UUID
+		ListingID    string
+		UserIp       string
+		UserID       string
+		Username     string
+		CommentText  string
+		Extract      pgtype.Numeric
+		ListingTitle pgtype.Text
+	}
+	row := Incomplete{
+		CommentID:    validFakeRow.CommentID,
+		ListingID:    validFakeRow.ListingID,
+		UserIp:       validFakeRow.UserIp,
+		UserID:       validFakeRow.UserID,
+		Username:     validFakeRow.Username,
+		CommentText:  validFakeRow.CommentText,
+		Extract:      validFakeRow.Extract,
+		ListingTitle: validFakeRow.ListingTitle,
+	}
+	_, err := GenericSQLCRowToComment(row)
+	if err == nil || err.Error() != "missing IpNonce field" {
+		t.Error("Expected missing IpNonce field error, got", err)
 	}
 }
 
@@ -593,7 +634,7 @@ func TestToResponseSlice(t *testing.T) {
 
 func TestConvertPGListingTitleToAPI_Valid(t *testing.T) {
 	pgTitle := pgtype.Text{String: "Sample Title", Valid: true}
-	apiTitle := convertPGListingTitleToAPI(pgTitle)
+	apiTitle := convertPGTextToString(pgTitle)
 	if apiTitle == nil {
 		t.Fatal("Expected non-nil API title for valid pgtype.Text")
 	}
@@ -604,7 +645,7 @@ func TestConvertPGListingTitleToAPI_Valid(t *testing.T) {
 
 func TestConvertPGListingTitleToAPI_Invalid(t *testing.T) {
 	pgTitle := pgtype.Text{String: "Should be nil", Valid: false}
-	apiTitle := convertPGListingTitleToAPI(pgTitle)
+	apiTitle := convertPGTextToString(pgTitle)
 	if apiTitle != nil {
 		t.Errorf("Expected nil API title for invalid pgtype.Text, got '%v'", *apiTitle)
 	}
@@ -612,7 +653,7 @@ func TestConvertPGListingTitleToAPI_Invalid(t *testing.T) {
 
 func TestConvertAPIListingTitleToPG_NonNil(t *testing.T) {
 	apiTitle := aws.String("API Title")
-	pgTitle := convertAPIListingTitleToPG(apiTitle)
+	pgTitle := convertStringToPGText(apiTitle)
 	if !pgTitle.Valid {
 		t.Error("Expected pgtype.Text.Valid to be true for non-nil API title")
 	}
@@ -623,7 +664,7 @@ func TestConvertAPIListingTitleToPG_NonNil(t *testing.T) {
 
 func TestConvertAPIListingTitleToPG_Nil(t *testing.T) {
 	var apiTitle *string = nil
-	pgTitle := convertAPIListingTitleToPG(apiTitle)
+	pgTitle := convertStringToPGText(apiTitle)
 	if pgTitle.Valid {
 		t.Error("Expected pgtype.Text.Valid to be false for nil API title")
 	}
