@@ -143,6 +143,10 @@ func (server *Server) PostListingComment(c *gin.Context) {
 		return
 	}
 
+	// Encrypt the IP after validation
+
+	//server.aesCipherGCM
+
 	// Acquire a Postgres connection from the pool
 	postgresConnection, err := server.GetPostgresPool().Acquire(context.TODO())
 	if err != nil {

@@ -28,11 +28,13 @@ package api
 
 import (
 	"context"
+	"crypto/cipher"
 	"errors"
 	"net/http"
 	"os"
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
+	"zillow-commenter.com/m/encryption"
 	"zillow-commenter.com/m/token"
 
 	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
@@ -51,6 +53,7 @@ type Server struct {
 	maker             *token.PasetoMaker
 	pool              *pgxpool.Pool
 	optionsMode       ServerOptions
+	aesCipherGCM      cipher.AEAD
 }
 
 func (server *Server) GetPostgresPool() *pgxpool.Pool {
@@ -130,6 +133,17 @@ func GetNewServer(serverOptions ServerOptions) (*Server, error) {
 	// We use the strict policy because there should be no reason to include *ANY* HTML in our comments
 	sanitizationPolicy := bluemonday.StrictPolicy()
 
+	// AES CIPHER
+
+	// If key is not 32 bytes long, it is invalid as an AES-256 key
+	aesKeyString := os.Getenv("ZILLOWETTE_AES_KEY")
+
+	// Generate new AES cipher object, wrapped in a Galois Counter Mode
+	aesCipher, err := encryption.GetNewAESCipher(aesKeyString)
+	if err != nil {
+		return nil, errors.Join(errors.New("failed to generate AES cipher for server"), err)
+	}
+
 	// Collect server singleton variables
 	server := &Server{
 		Router:            router,
@@ -138,6 +152,7 @@ func GetNewServer(serverOptions ServerOptions) (*Server, error) {
 		maker:             tokenMaker,
 		pool:              pool,
 		optionsMode:       serverOptions,
+		aesCipherGCM:      aesCipher,
 	}
 
 	// PLAYWRIGHT (DOES NOT WORK ON AWS LAMBDA)
