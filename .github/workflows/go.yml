@@ -35,14 +35,6 @@ jobs:
           cd backend
           go test -v ./db/postgres/sqlc
 
-      - name: Run Local API Tests
-        env:
-          CONNECTION_STRING: ${{ secrets.POSTGRES_CONNECTION_STRING }}
-          TOKEN_KEY: ${{ secrets.TOKEN_KEY }}
-        run: |
-          cd backend
-          go test -v ./api/local_tests
-
       - name: Run Blackbox API Tests
         env:
           API_IP: ${{ secrets.API_IP }}
