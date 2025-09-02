@@ -47,7 +47,7 @@ func (server *Server) GetListingComments(c *gin.Context) {
 	log.Println("GetListingComments called with listing_id:", listingID, "\nfrom IP:", userIP, "\nat timestamp:", timestamp)
 
 	// Check if the listing exists in the temporary comment database
-	comments, err := server.getComments(listingID)
+	comments, err := server.GetComments(listingID)
 	if err != nil {
 		log.Println("Error getting comments from db", listingID)
 
@@ -116,7 +116,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 		return
 	}
 
-	encryptedIPPackage, err := encryption.EncryptStringAESGCM(server.aesCipherGCM, userIP)
+	encryptedIPPackage, err := encryption.EncryptStringAESGCM(server.AesCipherGCM, userIP)
 	if err != nil {
 		log.Println("Error encrypting user IP:", err)
 		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
@@ -256,7 +256,7 @@ func (server *Server) GenerateUserID(c *gin.Context) {
 // Output:
 //   - A slice of Comment structs containing the comments for the specified listing.
 //   - An error if the listing doesn't exist in the DB.
-func (server Server) getComments(listingID string) ([]models.Comment, error) {
+func (server Server) GetComments(listingID string) ([]models.Comment, error) {
 	// Acquire a Postgres connection from the pool
 	postgresConnection, err := server.GetPostgresPool().Acquire(context.TODO())
 	if err != nil {

@@ -53,7 +53,7 @@ type Server struct {
 	maker             *token.PasetoMaker
 	pool              *pgxpool.Pool
 	optionsMode       ServerOptions
-	aesCipherGCM      cipher.AEAD
+	AesCipherGCM      cipher.AEAD
 }
 
 func (server *Server) GetPostgresPool() *pgxpool.Pool {
@@ -152,7 +152,7 @@ func GetNewServer(serverOptions ServerOptions) (*Server, error) {
 		maker:             tokenMaker,
 		pool:              pool,
 		optionsMode:       serverOptions,
-		aesCipherGCM:      aesCipher,
+		AesCipherGCM:      aesCipher,
 	}
 
 	// PLAYWRIGHT (DOES NOT WORK ON AWS LAMBDA)

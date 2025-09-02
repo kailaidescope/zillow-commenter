@@ -23,6 +23,7 @@ import (
 	"zillow-commenter.com/m/api"
 	"zillow-commenter.com/m/api/models"
 	"zillow-commenter.com/m/db/postgres/sqlc"
+	"zillow-commenter.com/m/encryption"
 )
 
 // =============================================================================================================== //
@@ -31,7 +32,7 @@ import (
 
 // HELPER VARIABLES
 
-var port = ":8000"
+var port = ":3000"
 var domainAddress = "http://localhost" + port
 
 // HELPER FUNCTIONS
@@ -137,11 +138,6 @@ func TestPostComment_ValidateListingID_InvalidID(t *testing.T) {
 	if resp.String() == "" || strings.Contains(resp.String(), "<b>") {
 		t.Errorf("Sanitization failed for ListingID: %s", resp.String())
 	}
-}
-
-func TestPostComment_SanitizesUserIp(t *testing.T) {
-	// UserIp is set by the server, so this test is best done by checking that XSS in IP is not possible.
-	// This is mostly covered by integration and unit
 }
 
 func TestPostComment_SanitizesUserID(t *testing.T) {
@@ -405,7 +401,7 @@ func validPostCommentParams(paramType validPostCommentParamsType) sqlc.PostComme
 	case ValidParamsIPv6:
 		return sqlc.PostCommentParams{
 			CommentID:    *commentID,
-			ListingID:    "654321",
+			ListingID:    getTestListingId(),
 			UserIp:       "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
 			UserID:       userID.String(),
 			Username:     "TestUserIPv6",
@@ -415,7 +411,7 @@ func validPostCommentParams(paramType validPostCommentParamsType) sqlc.PostComme
 	case ValidParamsAltIPv4:
 		return sqlc.PostCommentParams{
 			CommentID:    *commentID,
-			ListingID:    "789012",
+			ListingID:    getTestListingId(),
 			UserIp:       "10.0.0.1",
 			UserID:       userID.String(),
 			Username:     "TestUserAltIPv4",
@@ -425,7 +421,7 @@ func validPostCommentParams(paramType validPostCommentParamsType) sqlc.PostComme
 	default: // ValidParamsIPv4
 		return sqlc.PostCommentParams{
 			CommentID:    *commentID,
-			ListingID:    "123456",
+			ListingID:    getTestListingId(),
 			UserIp:       "192.168.1.1",
 			UserID:       userID.String(),
 			Username:     "TestUser",
@@ -751,5 +747,52 @@ func TestPostCommentParamsValidation_ListingTitle_DisallowedCharacters(t *testin
 	}
 	if resp.StatusCode() != http.StatusBadRequest {
 		t.Errorf("Expected 400 for invalid characters in listing_title #%d (%s), got %d: %s", 127, string(rune(127)), resp.StatusCode(), formatResponse(resp))
+	}
+}
+
+// ===================================================================================================================== //
+//                                              Miscellaneous Tests                                                      //
+// ===================================================================================================================== //
+
+func TestIPEncryption_RoundTrip(t *testing.T) {
+	teardown, server := setupAndTeardown(t)
+	defer teardown(t)
+
+	// POST comment to listing_id=0
+
+	params := validPostCommentParams(ValidParamsIPv4)
+
+	values := url.Values{}
+	values.Set("listing_id", params.ListingID)
+	values.Set("user_id", params.UserID)
+	values.Set("username", "TestUser")
+	values.Set("comment_text", params.CommentText)
+	values.Set("listing_title", params.ListingTitle.String)
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/x-www-form-urlencoded").
+		SetFormDataFromValues(values).
+		Post(domainAddress + "/api/v1/comments")
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if resp.StatusCode() != http.StatusCreated {
+		t.Errorf("Expected 201 for a valid round-trip IP encryption test post request, got %d: %s", resp.StatusCode(), formatResponse(resp))
+	}
+
+	// GET all comments from listing_id=0
+
+	comments, err := server.GetComments("0")
+
+	log.Println(comments[0])
+	decryptedIP, err := encryption.DecryptStringAESGCM(server.AesCipherGCM, &encryption.EncryptedPackage{EncryptedHexString: comments[0].UserIP, NonceHexString: *comments[0].IPNonce})
+	if err != nil {
+		t.Fatal("Couldn't decrypt IP during round trip test:", err)
+	}
+
+	if decryptedIP != "0.0.0.0" {
+		t.Fatal("Decrypted IP (", decryptedIP, ") was not equal to expected IP (0.0.0.0)")
 	}
 }
