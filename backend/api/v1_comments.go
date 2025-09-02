@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
+	"zillow-commenter.com/m/encryption"
 
 	ginadaptercore "github.com/awslabs/aws-lambda-go-api-proxy/core"
 	"github.com/gin-gonic/gin"
@@ -35,7 +36,7 @@ func (server *Server) GetListingComments(c *gin.Context) {
 
 	// Get information from the request context
 	listingID := c.Param("listing_id")
-	userIP, err := getUserIP(c)
+	_, err := server.getUserIP(c)
 	if err != nil {
 		log.Println("Error getting user IP:", err)
 		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
@@ -43,10 +44,10 @@ func (server *Server) GetListingComments(c *gin.Context) {
 	}
 	timestamp := time.Now().Unix()
 
-	log.Println("GetListingComments called with listing_id:", listingID, "\nfrom IP:", userIP, "\nat timestamp:", timestamp)
+	log.Println("GetListingComments called with listing_id:", listingID, "\nat timestamp:", timestamp)
 
 	// Check if the listing exists in the temporary comment database
-	comments, err := server.getComments(listingID)
+	comments, err := server.GetComments(listingID)
 	if err != nil {
 		log.Println("Error getting comments from db", listingID)
 
@@ -81,7 +82,7 @@ func (server *Server) GetListingComments(c *gin.Context) {
 //   - 500: Internal server error if something goes wrong.
 func (server *Server) PostListingComment(c *gin.Context) {
 	// Get information from the request context
-	userIP, err := getUserIP(c)
+	userIP, err := server.getUserIP(c)
 	if err != nil {
 		log.Println("Error getting user IP:", err)
 		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
@@ -96,9 +97,16 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	commentText := c.PostForm("comment_text")
 	listingTitle := c.PostForm("listing_title")
 
+	err = sqlc.ValidateIP(server.Validator, userIP)
+	if err != nil {
+		log.Println("Error validating user IP:", err)
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
+		return
+	}
+
 	// Log the request details
-	log.Printf("PostListingComment called with listing_id: %s, user_id: %s, username: %s, comment_text: %s, listing_title: %s\nfrom IP: %s\nat timestamp: %d",
-		listingID, userID, username, commentText, listingTitle, userIP, timestamp)
+	log.Printf("PostListingComment called with listing_id: %s, user_id: %s, username: %s, comment_text: %s, listing_title: %s\nat timestamp: %d",
+		listingID, userID, username, commentText, listingTitle, timestamp)
 
 	// Generate a new UUID for the comment using a timestamp-based version (v7) to ensure uniqueness
 	commentID, err := uuid.NewV7()
@@ -108,20 +116,27 @@ func (server *Server) PostListingComment(c *gin.Context) {
 		return
 	}
 
+	encryptedIPPackage, err := encryption.EncryptStringAESGCM(server.AesCipherGCM, userIP)
+	if err != nil {
+		log.Println("Error encrypting user IP:", err)
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
+		return
+	}
+
 	// Create a new comment
 	newComment := sqlc.PostCommentParams{
 		CommentID:    pgtype.UUID{Bytes: [16]byte(commentID), Valid: true}, // Unique comment ID based on timestamp
 		ListingID:    listingID,
-		UserIp:       userIP,
+		UserIp:       encryptedIPPackage.EncryptedHexString,
 		UserID:       userID,
 		Username:     username,
 		CommentText:  commentText,
-		ListingTitle: pgtype.Text{String: listingTitle, Valid: true}, // Convert listingTitle to a pgtype and mark it as valid (i.e. not null)
+		ListingTitle: pgtype.Text{String: listingTitle, Valid: true},                      // Convert listingTitle to a pgtype and mark it as valid (i.e. not null)
+		IpNonce:      pgtype.Text{String: encryptedIPPackage.NonceHexString, Valid: true}, // Convert ipNonce to a pgtype and mark it as valid (i.e. not null)
 	}
 
 	// Log the new comment creation
-	log.Println("New comment submitted for listing:", listingID, "by user:", username, "at timestamp:", timestamp)
-	log.Println("Comment details:", newComment)
+	log.Println("New comment submitted for listing:", listingID, "by user:", username, "at timestamp:", timestamp, "with text: '", commentText, "'")
 	log.Println("Sanitizing and validating comment parameters...")
 
 	// Perform first round validation on new comment parameters
@@ -203,14 +218,14 @@ func (server *Server) PostListingComment(c *gin.Context) {
 //   - 200: A JSON object containing the generated user ID. ID is a V7 (Time) UUID.
 func (server *Server) GenerateUserID(c *gin.Context) {
 	// Get information from the request context
-	userIP, err := getUserIP(c)
+	_, err := server.getUserIP(c)
 	if err != nil {
 		log.Println("Error getting user IP:", err)
 		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
 		return
 	}
 	timestamp := time.Now().Unix()
-	log.Println("GenerateUserID called from IP:", userIP, "at timestamp:", timestamp)
+	log.Println("GenerateUserID called at timestamp:", timestamp)
 
 	// Generate a new UUID for the user using a timestamp-based version (v7) to ensure uniqueness
 	userID, err := uuid.NewV7()
@@ -240,7 +255,7 @@ func (server *Server) GenerateUserID(c *gin.Context) {
 // Output:
 //   - A slice of Comment structs containing the comments for the specified listing.
 //   - An error if the listing doesn't exist in the DB.
-func (server Server) getComments(listingID string) ([]models.Comment, error) {
+func (server Server) GetComments(listingID string) ([]models.Comment, error) {
 	// Acquire a Postgres connection from the pool
 	postgresConnection, err := server.GetPostgresPool().Acquire(context.TODO())
 	if err != nil {
@@ -268,14 +283,20 @@ func (server Server) getComments(listingID string) ([]models.Comment, error) {
 }
 
 // getUserIP retrieves the user's IP address from the API Gateway context.
+// If the server mode is "test", the IP address is a placeholder, since the API Gateway is unavailable.
 //
 // Input:
+//   - server: the server whose instance is running.
 //   - c: The gin context containing the request.
 //
 // Output:
 //   - A pointer to a string containing the user's IP address.
 //   - An error if the API Gateway context does not contain a valid SourceIP.
-func getUserIP(c *gin.Context) (string, error) {
+func (server Server) getUserIP(c *gin.Context) (string, error) {
+	if server.optionsMode == Test {
+		return "0.0.0.0", nil
+	}
+
 	apiGatewayContext, ok := ginadaptercore.GetAPIGatewayContextFromContext(c.Request.Context())
 	if !ok {
 		return "", errors.New("failed to get API Gateway context from request context")

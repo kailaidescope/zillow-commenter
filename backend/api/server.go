@@ -28,11 +28,13 @@ package api
 
 import (
 	"context"
+	"crypto/cipher"
 	"errors"
 	"net/http"
 	"os"
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
+	"zillow-commenter.com/m/encryption"
 	"zillow-commenter.com/m/token"
 
 	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
@@ -50,25 +52,27 @@ type Server struct {
 	SantizationPolicy *bluemonday.Policy
 	maker             *token.PasetoMaker
 	pool              *pgxpool.Pool
+	optionsMode       ServerOptions
+	AesCipherGCM      cipher.AEAD
 }
 
 func (server *Server) GetPostgresPool() *pgxpool.Pool {
 	return server.pool
 }
 
-// DBOptions defines the allowed database connection options for the server.
-type DBOptions string
+// ServerOptions defines the allowed database connection options for the server.
+type ServerOptions string
 
 const (
-	Production DBOptions = "production"
-	Test       DBOptions = "test"
+	Production ServerOptions = "production"
+	Test       ServerOptions = "test"
 )
 
 // GetNewServer creates a new Server instance with all necessary dependencies initialized.
 //
 // Input:
 //   - dbOptions: A enum containing database connection options. Allowed values are ["production", "test"]
-func GetNewServer(dbOptions DBOptions) (*Server, error) {
+func GetNewServer(serverOptions ServerOptions) (*Server, error) {
 	// Load env vars (NOT NECESSARY FOR AWS LAMBDA)
 	/* err := godotenv.Load()
 	if err != nil {
@@ -85,14 +89,14 @@ func GetNewServer(dbOptions DBOptions) (*Server, error) {
 
 	// POSTGRES CONNECTION
 
-	// Deny invalid dbOptions
-	if dbOptions != Production && dbOptions != Test {
-		return nil, errors.New("invalid dbOptions provided, must be either 'production' or 'test'")
+	// Deny invalid serverOptions
+	if serverOptions != Production && serverOptions != Test {
+		return nil, errors.New("invalid serverOptions provided, must be either 'production' or 'test'")
 	}
 
-	// Create a new connection pool to the PostgreSQL database based on the dbOptions
+	// Create a new connection pool to the PostgreSQL database based on the serverOptions
 	var pool *pgxpool.Pool
-	switch dbOptions {
+	switch serverOptions {
 	case Test:
 		pool, err = pgxpool.New(context.Background(), os.Getenv("POSTGRES_CONNECTION_STRING_TEST"))
 		if err != nil {
@@ -129,6 +133,17 @@ func GetNewServer(dbOptions DBOptions) (*Server, error) {
 	// We use the strict policy because there should be no reason to include *ANY* HTML in our comments
 	sanitizationPolicy := bluemonday.StrictPolicy()
 
+	// AES CIPHER
+
+	// If key is not 32 bytes long, it is invalid as an AES-256 key
+	aesKeyString := os.Getenv("ZILLOWETTE_AES_KEY")
+
+	// Generate new AES cipher object, wrapped in a Galois Counter Mode
+	aesCipher, err := encryption.GetNewAESCipher(aesKeyString)
+	if err != nil {
+		return nil, errors.Join(errors.New("failed to generate AES cipher for server"), err)
+	}
+
 	// Collect server singleton variables
 	server := &Server{
 		Router:            router,
@@ -136,6 +151,8 @@ func GetNewServer(dbOptions DBOptions) (*Server, error) {
 		SantizationPolicy: sanitizationPolicy,
 		maker:             tokenMaker,
 		pool:              pool,
+		optionsMode:       serverOptions,
+		AesCipherGCM:      aesCipher,
 	}
 
 	// PLAYWRIGHT (DOES NOT WORK ON AWS LAMBDA)

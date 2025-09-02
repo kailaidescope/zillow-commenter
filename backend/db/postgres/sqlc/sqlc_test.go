@@ -315,31 +315,34 @@ func validPostCommentParams(paramType ValidPostCommentParamsType) PostCommentPar
 		return PostCommentParams{
 			CommentID:    *commentID,
 			ListingID:    "654321",
-			UserIp:       "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+			UserIp:       "3e220f2bf981113f9b5f597168a8e13514b75a9fe9268b68e662fda5386bfb4a9490e8341315c399316cace7f41b61f7a5404fe7c04969",
 			UserID:       userID.String(),
 			Username:     "TestUserIPv6",
 			CommentText:  "This is a valid IPv6 comment.",
 			ListingTitle: pgtype.Text{String: "Regular title", Valid: true},
+			IpNonce:      pgtype.Text{String: "0d00ad4b080209200aa852f2", Valid: true},
 		}
 	case ValidParamsAltIPv4:
 		return PostCommentParams{
 			CommentID:    *commentID,
 			ListingID:    "789012",
-			UserIp:       "10.0.0.1",
+			UserIp:       "9d8787f71c30a79d519688a4054b4b8a363af95e8f4b7e5b",
 			UserID:       userID.String(),
 			Username:     "TestUserAltIPv4",
 			CommentText:  "This is another valid IPv4 comment.",
 			ListingTitle: pgtype.Text{String: "Regular title", Valid: true},
+			IpNonce:      pgtype.Text{String: "bdc990f0a33e852bd0e412dc", Valid: true},
 		}
 	default: // ValidParamsIPv4
 		return PostCommentParams{
 			CommentID:    *commentID,
 			ListingID:    "123456",
-			UserIp:       "192.168.1.1",
+			UserIp:       "bd98b9c5db0655b23e47a57ba65c2b7446bf1c08b39ac3173e89ab",
 			UserID:       userID.String(),
 			Username:     "TestUser",
 			CommentText:  "This is a valid comment.",
 			ListingTitle: pgtype.Text{String: "Regular title", Valid: true},
+			IpNonce:      pgtype.Text{String: "1ee7385a435e4cc5e534b051", Valid: true},
 		}
 	}
 }
@@ -535,11 +538,87 @@ func TestPostCommentParamsValidation_UserIp_InvalidIP(t *testing.T) {
 	defer teardown(t)
 
 	params := validPostCommentParams(ValidParamsIPv4)
-	params.UserIp = "not_an_ip"
+	params.UserIp = "not_an_encrypted_ip"
 
 	err := validate.Struct(params)
 	if err == nil {
 		t.Error("Expected error for invalid UserIp, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_UserIp_NotHexadecimal(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	// Insert a non-hex character
+	params.UserIp = makeStringOfLength(40) + "Z"
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for UserIp with non-hexadecimal character, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_UserIp_MinLength(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	// 39 chars, min=40
+	params.UserIp = makeStringOfLength(39)
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for UserIp with length < 40, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_UserIp_MaxLength(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	// 131 chars, max=130
+	params.UserIp = makeStringOfLength(131)
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for UserIp with length > 130, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_UserIp_ValidHexMinLength(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	// 40 chars, all hex
+	params.UserIp = ""
+	for i := 0; i < 40; i++ {
+		params.UserIp += "a"
+	}
+
+	err := validate.Struct(params)
+	if err != nil {
+		t.Errorf("Expected valid UserIp with min length 40, got error: %v", err)
+	}
+}
+
+func TestPostCommentParamsValidation_UserIp_ValidHexMaxLength(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	// 130 chars, all hex
+	params.UserIp = ""
+	for i := 0; i < 130; i++ {
+		params.UserIp += "b"
+	}
+
+	err := validate.Struct(params)
+	if err != nil {
+		t.Errorf("Expected valid UserIp with max length 130, got error: %v", err)
 	}
 }
 
@@ -1150,7 +1229,7 @@ func TestPostCommentParamsValidation_CommentText_MaxLength(t *testing.T) {
 
 // --- LISTINGTITLE ---
 
-func TestPostCommentParamsValidation_ListingTitle_ValidPGType(t *testing.T) {
+func TestPostCommentParamsValidation_ListingTitle_InvalidPGType(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
@@ -1226,7 +1305,7 @@ func TestPostCommentParamsValidation_ListingTitle_AllowedCharacters(t *testing.T
 
 		err := validate.Struct(params)
 		if err != nil {
-			t.Error("Expected no error for ListingTitle with allowed character #", val, " (", string(rune(val)), "), got nil")
+			t.Error("Expected no error for ListingTitle with allowed character #", val, " (", string(rune(val)), "), got", err)
 		}
 	}
 }
@@ -1253,6 +1332,99 @@ func TestPostCommentParamsValidation_ListingTitle_DisallowedCharacters(t *testin
 	err := validate.Struct(params)
 	if err == nil {
 		t.Error("Expected error for ListingTitle with disallowed character #", 127, " (", string(rune(127)), "), got nil")
+	}
+}
+
+// --- IP NONCE ---
+
+func TestPostCommentParamsValidation_IpNonce_InvalidPGType(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	params.IpNonce.String = makeStringOfLength(24)
+	params.IpNonce.Valid = false
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for invalid Valid field in IpNonce, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_IpNonce_Required(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	params.IpNonce.String = ""
+	params.IpNonce.Valid = true
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for missing IpNonce, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_IpNonce_NotHexadecimal(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	// Insert a non-hex character
+	params.IpNonce.String = makeStringOfLength(23) + "Z"
+	params.IpNonce.Valid = true
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for IpNonce with non-hexadecimal character, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_IpNonce_WrongLength_Short(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	// 23 chars, should be 24
+	params.IpNonce.String = makeStringOfLength(23)
+	params.IpNonce.Valid = true
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for IpNonce with length < 24, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_IpNonce_WrongLength_Long(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	// 25 chars, should be 24
+	params.IpNonce.String = makeStringOfLength(25)
+	params.IpNonce.Valid = true
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for IpNonce with length > 24, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_IpNonce_ValidHexLength24(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := validPostCommentParams(ValidParamsIPv4)
+	// 24 chars, all hex
+	params.IpNonce.String = ""
+	for i := 0; i < 24; i++ {
+		params.IpNonce.String += "a"
+	}
+	params.IpNonce.Valid = true
+
+	err := validate.Struct(params)
+	if err != nil {
+		t.Errorf("Expected valid IpNonce with length 24 and hex, got error: %v", err)
 	}
 }
 

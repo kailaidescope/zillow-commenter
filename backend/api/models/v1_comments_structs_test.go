@@ -2,8 +2,8 @@ package models
 
 import (
 	"errors"
-	"log"
 	"math/big"
+	"reflect"
 	"testing"
 	"time"
 
@@ -30,6 +30,7 @@ type fakeRow struct {
 	CommentText  string
 	Extract      pgtype.Numeric
 	ListingTitle pgtype.Text
+	IpNonce      pgtype.Text
 }
 
 // validPgtypeUUID generates a valid pgtype.UUID for testing.
@@ -68,12 +69,13 @@ func defaultFakeRow() fakeRow {
 	return fakeRow{
 		CommentID:    commentID,
 		ListingID:    "1234567",
-		UserIp:       "127.0.0.1",
+		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "tester",
 		CommentText:  "hello",
 		Extract:      validPgtypeNumeric(time.Now().UnixMicro()),
 		ListingTitle: pgtype.Text{String: "test title", Valid: true},
+		IpNonce:      pgtype.Text{String: "96dc49a63b34dcf9229c0ed5", Valid: true},
 	}
 }
 
@@ -84,12 +86,13 @@ func defaultPostCommentRow() sqlc.PostCommentRow {
 	return sqlc.PostCommentRow{
 		CommentID:    commentID,
 		ListingID:    "1234567",
-		UserIp:       "127.0.0.1",
+		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "tester",
 		CommentText:  "hello",
 		Extract:      validPgtypeNumeric(time.Now().UnixMicro()),
 		ListingTitle: pgtype.Text{String: "test title", Valid: true},
+		IpNonce:      pgtype.Text{String: "96dc49a63b34dcf9229c0ed5", Valid: true},
 	}
 }
 
@@ -100,29 +103,13 @@ func defaultGetCommentRow() sqlc.GetCommentsByListingIDRow {
 	return sqlc.GetCommentsByListingIDRow{
 		CommentID:    commentID,
 		ListingID:    "1234567",
-		UserIp:       "127.0.0.1",
+		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "tester",
 		CommentText:  "hello",
 		Extract:      validPgtypeNumeric(time.Now().UnixMicro()),
 		ListingTitle: pgtype.Text{String: "test title", Valid: true},
-	}
-}
-
-// -- For CommentRowToComment tests ---
-
-func defaultCommentRow() sqlc.GetCommentsByListingIDRow {
-	commentID, _ := validPgtypeUUID()
-	userID, _ := uuid.NewV7()
-	return sqlc.GetCommentsByListingIDRow{
-		CommentID:    commentID,
-		ListingID:    "listing",
-		UserIp:       "ip",
-		UserID:       userID.String(),
-		Username:     "name",
-		CommentText:  "text",
-		Extract:      validPgtypeNumeric(time.Now().UnixMicro()),
-		ListingTitle: pgtype.Text{String: "test title", Valid: true},
+		IpNonce:      pgtype.Text{String: "96dc49a63b34dcf9229c0ed5", Valid: true},
 	}
 }
 
@@ -134,12 +121,13 @@ func defaultComment() Comment {
 	return Comment{
 		ListingID:    "listing",
 		CommentID:    id,
-		UserIP:       "ip",
+		UserIP:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       "user",
 		Username:     "name",
 		CommentText:  "text",
 		Timestamp:    time.Now().UnixMicro(),
 		ListingTitle: aws.String("test title"),
+		IPNonce:      aws.String("96dc49a63b34dcf9229c0ed5"),
 	}
 }
 
@@ -148,6 +136,50 @@ func defaultComment() Comment {
 // ===================================================================================================================== //
 
 // --- GenericRowToComment tests ---
+
+func checkGenericRowToCommentConversion(genericRow interface{}, comment *Comment, t *testing.T) {
+	reflectedRow := reflect.ValueOf(genericRow)
+	if reflectedRow.Kind() == reflect.Ptr {
+		reflectedRow = reflectedRow.Elem()
+	}
+	if reflectedRow.Kind() != reflect.Struct {
+		t.Error("Input row to test generic row conversion is not a struct")
+	}
+
+	if comment == nil {
+		t.Error("Expected non-nil Comment struct")
+	}
+	if reflectedRow.FieldByName("ListingID").Interface().(string) != comment.ListingID {
+		t.Error("Expected ListingID ", reflectedRow.FieldByName("ListingID").Interface().(string), ", got ", comment.ListingID)
+	}
+	if reflectedRow.FieldByName("UserIp").Interface().(string) != comment.UserIP {
+		t.Error("Expected UserIp ", reflectedRow.FieldByName("UserIp").Interface().(string), ", got ", comment.UserIP)
+	}
+	if reflectedRow.FieldByName("UserID").Interface().(string) != comment.UserID {
+		t.Error("Expected UserID ", reflectedRow.FieldByName("UserID").Interface().(string), ", got ", comment.UserID)
+	}
+	if reflectedRow.FieldByName("Username").Interface().(string) != comment.Username {
+		t.Error("Expected Username ", reflectedRow.FieldByName("Username").Interface().(string), ", got ", comment.Username)
+	}
+	if reflectedRow.FieldByName("CommentText").Interface().(string) != comment.CommentText {
+		t.Error("Expected CommentText ", reflectedRow.FieldByName("CommentText").Interface().(string), ", got ", comment.CommentText)
+	}
+	if reflectedRow.FieldByName("CommentID").Interface().(pgtype.UUID).Bytes != [16]byte(comment.CommentID) {
+		t.Error("Expected CommentID bytes ", reflectedRow.FieldByName("CommentID").Interface().(pgtype.UUID).Bytes, ", got ", [16]byte(comment.CommentID))
+	}
+	if (comment.ListingTitle == nil) == reflectedRow.FieldByName("ListingTitle").Interface().(pgtype.Text).Valid {
+		t.Error("Expected comment.ListingTitle == nil to be ", comment.ListingTitle != nil, ", since row.ListingTitle.Valid == nil is ", reflectedRow.FieldByName("ListingTitle").Interface().(pgtype.Text).Valid, ", but comment.ListingTitle == nil is ", comment.ListingTitle == nil)
+	}
+	if comment.ListingTitle != nil && *comment.ListingTitle != reflectedRow.FieldByName("ListingTitle").Interface().(pgtype.Text).String {
+		t.Error("Expected comment and row to have same listing title, but got comment.ListingTitle=", *comment.ListingTitle, " and row.ListingTitle.String=", reflectedRow.FieldByName("ListingTitle").Interface().(pgtype.Text).String)
+	}
+	if (comment.IPNonce == nil) == reflectedRow.FieldByName("IpNonce").Interface().(pgtype.Text).Valid {
+		t.Error("Expected comment.IPNonce == nil to be ", comment.IPNonce != nil, ", since row.IpNonce.Valid is ", reflectedRow.FieldByName("IpNonce").Interface().(pgtype.Text).Valid, ", but comment.IPNonce == nil is ", comment.IPNonce == nil)
+	}
+	if comment.IPNonce != nil && *comment.IPNonce != reflectedRow.FieldByName("IpNonce").Interface().(pgtype.Text).String {
+		t.Error("Expected comment and row to have same ip nonce, but got comment.IPNonce=", *comment.IPNonce, " and row.IpNonce.String=", reflectedRow.FieldByName("IpNonce").Interface().(pgtype.Text).String)
+	}
+}
 
 // Test for arbitrary row conversion to Comment.
 func TestGenericRowToComment_ValidFakeRow(t *testing.T) {
@@ -159,7 +191,11 @@ func TestGenericRowToComment_ValidFakeRow(t *testing.T) {
 	if comment.ListingID != row.ListingID || comment.Username != row.Username {
 		t.Error("Unexpected comment fields: ", comment)
 	}
-	log.Println("Successfully converted fake SQLC row struct to Comment:\n\n", comment, "\n\nfrom row:\n\n", row)
+	if comment.ListingTitle == nil || *comment.ListingTitle != row.ListingTitle.String {
+		t.Errorf("Expected ListingTitle '%s', got '%v'", row.ListingTitle.String, comment.ListingTitle)
+	}
+	checkGenericRowToCommentConversion(row, comment, t)
+	//log.Println("Successfully converted fake SQLC row struct to Comment:\n\n", comment, "\n\nfrom row:\n\n", row)
 }
 
 // Test for converting PostCommentRow to Comment.
@@ -172,7 +208,11 @@ func TestGenericRowToComment_ValidPostCommentRow(t *testing.T) {
 	if comment.ListingID != row.ListingID || comment.Username != row.Username {
 		t.Error("Unexpected comment fields: ", comment)
 	}
-	log.Println("Successfully converted PostCommentRow to Comment:\n\n", comment, "\n\nfrom row:\n\n", row)
+	if comment.ListingTitle == nil || *comment.ListingTitle != row.ListingTitle.String {
+		t.Errorf("Expected ListingTitle '%s', got '%v'", row.ListingTitle.String, comment.ListingTitle)
+	}
+	checkGenericRowToCommentConversion(row, comment, t)
+	//log.Println("Successfully converted PostCommentRow to Comment:\n\n", comment, "\n\nfrom row:\n\n", row)
 }
 
 // Test for converting GetCommentsByListingIDRow to Comment.
@@ -185,7 +225,11 @@ func TestGenericRowToComment_ValidGetCommentRow(t *testing.T) {
 	if comment.ListingID != row.ListingID || comment.Username != row.Username {
 		t.Error("Unexpected comment fields: ", comment)
 	}
-	log.Println("Successfully converted GetCommentRow to Comment:\n\n", comment, "\n\nfrom row:\n\n", row)
+	if comment.ListingTitle == nil || *comment.ListingTitle != row.ListingTitle.String {
+		t.Errorf("Expected ListingTitle '%s', got '%v'", row.ListingTitle.String, comment.ListingTitle)
+	}
+	checkGenericRowToCommentConversion(row, comment, t)
+	//log.Println("Successfully converted GetCommentRow to Comment:\n\n", comment, "\n\nfrom row:\n\n", row)
 }
 
 func TestGenericRowToComment_InvalidType(t *testing.T) {
@@ -208,22 +252,26 @@ func TestGenericRowToComment_MissingField(t *testing.T) {
 func TestGenericRowToComment_InvalidUUIDType(t *testing.T) {
 	row := defaultFakeRow()
 	type BadUUID struct {
-		CommentID   string
-		ListingID   string
-		UserIp      string
-		UserID      string
-		Username    string
-		CommentText string
-		Extract     pgtype.Numeric
+		CommentID    string
+		ListingID    string
+		UserIp       string
+		UserID       string
+		Username     string
+		CommentText  string
+		Extract      pgtype.Numeric
+		ListingTitle pgtype.Text
+		IpNonce      pgtype.Text
 	}
 	badRow := BadUUID{
-		CommentID:   "not-a-uuid",
-		ListingID:   row.ListingID,
-		UserIp:      row.UserIp,
-		UserID:      row.UserID,
-		Username:    row.Username,
-		CommentText: row.CommentText,
-		Extract:     row.Extract,
+		CommentID:    "not-a-uuid",
+		ListingID:    row.ListingID,
+		UserIp:       row.UserIp,
+		UserID:       row.UserID,
+		Username:     row.Username,
+		CommentText:  row.CommentText,
+		Extract:      row.Extract,
+		ListingTitle: row.ListingTitle,
+		IpNonce:      row.IpNonce,
 	}
 	convertedRow, err := GenericSQLCRowToComment(badRow)
 	if err == nil {
@@ -267,88 +315,237 @@ func TestGenericRowToComment_TimestampFormat(t *testing.T) {
 	}
 }
 
-// --- (Comment) ToPostCommentRow tests ---
-
-func TestComment_ToPostCommentRow_Valid(t *testing.T) {
-	comment := defaultComment()
-	row := comment.ToPostCommentRow()
-	if row == nil {
-		t.Error("Expected non-nil PostCommentRow")
+// Test for ListingTitle with Valid=false (should be nil in Comment)
+func TestGenericRowToComment_ListingTitleInvalid(t *testing.T) {
+	row := defaultFakeRow()
+	row.ListingTitle = pgtype.Text{String: "should be nil", Valid: false}
+	comment, err := GenericSQLCRowToComment(row)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
 	}
-	if row.ListingID != comment.ListingID {
-		t.Error("Expected ListingID ", comment.ListingID, ", got ", row.ListingID)
-	}
-	if row.UserIp != comment.UserIP {
-		t.Error("Expected UserIp ", comment.UserIP, ", got ", row.UserIp)
-	}
-	if row.UserID != comment.UserID {
-		t.Error("Expected UserID ", comment.UserID, ", got ", row.UserID)
-	}
-	if row.Username != comment.Username {
-		t.Error("Expected Username ", comment.Username, ", got ", row.Username)
-	}
-	if row.CommentText != comment.CommentText {
-		t.Error("Expected CommentText ", comment.CommentText, ", got ", row.CommentText)
-	}
-	if !row.CommentID.Valid {
-		t.Error("Expected valid CommentID")
-	}
-	if row.CommentID.Bytes != [16]byte(comment.CommentID) {
-		t.Error("Expected CommentID bytes ", [16]byte(comment.CommentID), ", got ", row.CommentID.Bytes)
-	}
-	if !row.Extract.Valid {
-		t.Error("Expected valid Extract field")
-	}
-	if row.Extract.Int.Int64() != comment.Timestamp {
-		t.Error("Expected Extract ", comment.Timestamp, ", got ", row.Extract.Int.Int64())
+	if comment.ListingTitle != nil {
+		t.Errorf("Expected ListingTitle to be nil, got %v", comment.ListingTitle)
 	}
 }
 
-func TestComment_ToPostCommentRow_UUIDBytes(t *testing.T) {
+// Test for missing ListingTitle field (should error)
+func TestGenericRowToComment_MissingListingTitle(t *testing.T) {
+	validFakeRow := defaultFakeRow()
+	type Incomplete struct {
+		CommentID   pgtype.UUID
+		ListingID   string
+		UserIp      string
+		UserID      string
+		Username    string
+		CommentText string
+		Extract     pgtype.Numeric
+		IpNonce     pgtype.Text
+	}
+	row := Incomplete{
+		CommentID:   validFakeRow.CommentID,
+		ListingID:   validFakeRow.ListingID,
+		UserIp:      validFakeRow.UserIp,
+		UserID:      validFakeRow.UserID,
+		Username:    validFakeRow.Username,
+		CommentText: validFakeRow.CommentText,
+		Extract:     validFakeRow.Extract,
+		IpNonce:     validFakeRow.IpNonce,
+	}
+	_, err := GenericSQLCRowToComment(row)
+	if err == nil || err.Error() != "missing ListingTitle field" {
+		t.Error("Expected missing ListingTitle field error, got", err)
+	}
+}
+
+// Test for IPNonce with Valid=false (should be nil in Comment)
+func TestGenericRowToComment_IPNonceInvalid(t *testing.T) {
+	row := defaultFakeRow()
+	row.IpNonce = pgtype.Text{String: "should be nil", Valid: false}
+	comment, err := GenericSQLCRowToComment(row)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if comment.IPNonce != nil {
+		t.Errorf("Expected IPNonce to be nil, got %v", comment.IPNonce)
+	}
+}
+
+// Test for missing IpNonce field (should error)
+func TestGenericRowToComment_MissingIpNonce(t *testing.T) {
+	validFakeRow := defaultFakeRow()
+	type Incomplete struct {
+		CommentID    pgtype.UUID
+		ListingID    string
+		UserIp       string
+		UserID       string
+		Username     string
+		CommentText  string
+		Extract      pgtype.Numeric
+		ListingTitle pgtype.Text
+	}
+	row := Incomplete{
+		CommentID:    validFakeRow.CommentID,
+		ListingID:    validFakeRow.ListingID,
+		UserIp:       validFakeRow.UserIp,
+		UserID:       validFakeRow.UserID,
+		Username:     validFakeRow.Username,
+		CommentText:  validFakeRow.CommentText,
+		Extract:      validFakeRow.Extract,
+		ListingTitle: validFakeRow.ListingTitle,
+	}
+	_, err := GenericSQLCRowToComment(row)
+	if err == nil || err.Error() != "missing IpNonce field" {
+		t.Error("Expected missing IpNonce field error, got", err)
+	}
+}
+
+// --- (Comment) ToPostCommentRow tests ---
+
+func checkCommentToPostParamsConversion(comment Comment, postParams *sqlc.PostCommentParams, t *testing.T) {
+	if postParams == nil {
+		t.Error("Expected non-nil PostCommentRow")
+	}
+	if postParams.ListingID != comment.ListingID {
+		t.Error("Expected ListingID ", comment.ListingID, ", got ", postParams.ListingID)
+	}
+	if postParams.UserIp != comment.UserIP {
+		t.Error("Expected UserIp ", comment.UserIP, ", got ", postParams.UserIp)
+	}
+	if postParams.UserID != comment.UserID {
+		t.Error("Expected UserID ", comment.UserID, ", got ", postParams.UserID)
+	}
+	if postParams.Username != comment.Username {
+		t.Error("Expected Username ", comment.Username, ", got ", postParams.Username)
+	}
+	if postParams.CommentText != comment.CommentText {
+		t.Error("Expected CommentText ", comment.CommentText, ", got ", postParams.CommentText)
+	}
+	if !postParams.CommentID.Valid {
+		t.Error("Expected valid CommentID")
+	}
+	if postParams.CommentID.Bytes != [16]byte(comment.CommentID) {
+		t.Error("Expected CommentID bytes ", [16]byte(comment.CommentID), ", got ", postParams.CommentID.Bytes)
+	}
+	if (comment.ListingTitle == nil) == postParams.ListingTitle.Valid {
+		t.Error("Expected row.ListingTitle.Valid to be ", !postParams.ListingTitle.Valid, ", since comment.ListingTitle == nil is ", comment.ListingTitle == nil, ", but Valid=", postParams.ListingTitle.Valid)
+	}
+	if comment.ListingTitle != nil && *comment.ListingTitle != postParams.ListingTitle.String {
+		t.Error("Expected comment and row to have same listing title, but got comment.ListingTitle=", *comment.ListingTitle, " and row.ListingTitle.String=", postParams.ListingTitle.String)
+	}
+	if (comment.IPNonce == nil) == postParams.IpNonce.Valid {
+		t.Error("Expected row.IpNonce.Valid to be ", !postParams.IpNonce.Valid, ", since comment.IPNonce == nil is ", comment.IPNonce == nil, ", but Valid=", postParams.IpNonce.Valid)
+	}
+	if comment.IPNonce != nil && *comment.IPNonce != postParams.IpNonce.String {
+		t.Error("Expected comment and row to have same ip nonce, but got comment.IPNonce=", *comment.IPNonce, " and row.IpNonce.String=", postParams.IpNonce.String)
+	}
+}
+
+func checkCommentToGenericRowConversion(comment Comment, genericRow interface{}, t *testing.T) {
+	if genericRow == nil {
+		t.Error("Expected non-nil converted row struct")
+	}
+
+	reflectedRow := reflect.ValueOf(genericRow)
+	if reflectedRow.Kind() == reflect.Ptr {
+		reflectedRow = reflectedRow.Elem()
+	}
+	if reflectedRow.Kind() != reflect.Struct {
+		t.Error("Input row to test generic row conversion is not a struct")
+	}
+
+	if reflectedRow.FieldByName("ListingID").Interface().(string) != comment.ListingID {
+		t.Error("Expected ListingID ", comment.ListingID, ", got ", reflectedRow.FieldByName("ListingID").Interface().(string))
+	}
+	if reflectedRow.FieldByName("UserIp").Interface().(string) != comment.UserIP {
+		t.Error("Expected UserIp ", comment.UserIP, ", got ", reflectedRow.FieldByName("UserIp").Interface().(string))
+	}
+	if reflectedRow.FieldByName("UserID").Interface().(string) != comment.UserID {
+		t.Error("Expected UserID ", comment.UserID, ", got ", reflectedRow.FieldByName("UserID").Interface().(string))
+	}
+	if reflectedRow.FieldByName("Username").Interface().(string) != comment.Username {
+		t.Error("Expected Username ", comment.Username, ", got ", reflectedRow.FieldByName("Username").Interface().(string))
+	}
+	if reflectedRow.FieldByName("CommentText").Interface().(string) != comment.CommentText {
+		t.Error("Expected CommentText ", comment.CommentText, ", got ", reflectedRow.FieldByName("CommentText").Interface().(string))
+	}
+	if !reflectedRow.FieldByName("CommentID").Interface().(pgtype.UUID).Valid {
+		t.Error("Expected valid CommentID")
+	}
+	if reflectedRow.FieldByName("CommentID").Interface().(pgtype.UUID).Bytes != [16]byte(comment.CommentID) {
+		t.Error("Expected CommentID bytes ", [16]byte(comment.CommentID), ", got ", reflectedRow.FieldByName("CommentID").Interface().(pgtype.UUID).Bytes)
+	}
+	if (comment.ListingTitle == nil) == reflectedRow.FieldByName("ListingTitle").Interface().(pgtype.Text).Valid {
+		t.Error("Expected row.ListingTitle.Valid to be ", !reflectedRow.FieldByName("ListingTitle").Interface().(pgtype.Text).Valid, ", since comment.ListingTitle == nil is ", comment.ListingTitle == nil, ", but Valid=", reflectedRow.FieldByName("ListingTitle").Interface().(pgtype.Text).Valid)
+	}
+	if comment.ListingTitle != nil && *comment.ListingTitle != reflectedRow.FieldByName("ListingTitle").Interface().(pgtype.Text).String {
+		t.Error("Expected comment and row to have same listing title, but got comment.ListingTitle=", *comment.ListingTitle, " and row.ListingTitle.String=", reflectedRow.FieldByName("ListingTitle").Interface().(pgtype.Text).String)
+	}
+	if (comment.IPNonce == nil) == reflectedRow.FieldByName("IpNonce").Interface().(pgtype.Text).Valid {
+		t.Error("Expected row.IpNonce.Valid to be ", !reflectedRow.FieldByName("IpNonce").Interface().(pgtype.Text).Valid, ", since comment.IPNonce == nil is ", comment.IPNonce == nil, ", but Valid=", reflectedRow.FieldByName("IpNonce").Interface().(pgtype.Text).Valid)
+	}
+	if comment.IPNonce != nil && *comment.IPNonce != reflectedRow.FieldByName("IpNonce").Interface().(pgtype.Text).String {
+		t.Error("Expected comment and row to have same ip nonce, but got comment.IPNonce=", *comment.IPNonce, " and row.IpNonce.String=", reflectedRow.FieldByName("IpNonce").Interface().(pgtype.Text).String)
+	}
+}
+
+func TestComment_ToPostCommentParams_Valid(t *testing.T) {
 	comment := defaultComment()
-	row := comment.ToPostCommentRow()
+	row := comment.ToPostCommentParams()
+
+	// Test row conversion
+	checkCommentToGenericRowConversion(comment, row, t)
+}
+
+func TestComment_ToPostCommentParams_Valid_NilListingTitle(t *testing.T) {
+	comment := defaultComment()
+	comment.ListingTitle = nil
+	row := comment.ToPostCommentParams()
+
+	// Test row conversion
+	checkCommentToGenericRowConversion(comment, row, t)
+}
+
+func TestComment_ToPostCommentParams_Valid_NilIPNonce(t *testing.T) {
+	comment := defaultComment()
+	comment.IPNonce = nil
+	row := comment.ToPostCommentParams()
+
+	// Test row conversion
+	checkCommentToGenericRowConversion(comment, row, t)
+}
+
+func TestComment_ToPostCommentParams_UUIDBytes(t *testing.T) {
+	comment := defaultComment()
+	row := comment.ToPostCommentParams()
 	expectedBytes := [16]byte(comment.CommentID)
 	if row.CommentID.Bytes != expectedBytes {
 		t.Error("Expected UUID bytes ", expectedBytes, ", got ", row.CommentID.Bytes)
 	}
 }
 
-func TestComment_ToPostCommentRow_TimestampConversion(t *testing.T) {
-	comment := defaultComment()
-	row := comment.ToPostCommentRow()
-	if !row.Extract.Valid {
-		t.Error("Expected valid Extract field")
-	}
-	if row.Extract.Int.Int64() != comment.Timestamp {
-		t.Error("Expected Extract ", comment.Timestamp, ", got ", row.Extract.Int.Int64())
-	}
-}
-
-func TestComment_ToPostCommentRow_NilReceiver(t *testing.T) {
+func TestComment_ToPostCommentParams_NilReceiver(t *testing.T) {
 	var comment *Comment
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("Expected panic when calling ToPostCommentRow on nil receiver")
 		}
 	}()
-	_ = comment.ToPostCommentRow()
+	_ = comment.ToPostCommentParams()
 }
 
-// --- CommentRowToComment tests ---
+// --- GetCommentRowToComment tests ---
 
 func TestCommentRowToComment_Valid(t *testing.T) {
-	row := defaultCommentRow()
+	row := defaultGetCommentRow()
 	comment, err := GetCommentRowToComment(row)
 	if err != nil {
 		t.Fatal("Expected no error, got ", err)
 	}
-	if [16]byte(comment.CommentID) != row.CommentID.Bytes {
-		t.Error("Expected comment ID ", row.CommentID, ", got ", comment.CommentID)
-	}
+	checkGenericRowToCommentConversion(row, comment, t)
 }
 
 func TestCommentRowToComment_InvalidUUID(t *testing.T) {
-	row := defaultCommentRow()
+	row := defaultGetCommentRow()
 	row.CommentID = pgtype.UUID{Bytes: [16]byte{}, Valid: false}
 	convertedRow, err := GetCommentRowToComment(row)
 	if err == nil {
@@ -357,7 +554,7 @@ func TestCommentRowToComment_InvalidUUID(t *testing.T) {
 }
 
 func TestCommentRowToComment_InvalidTimestamp(t *testing.T) {
-	row := defaultCommentRow()
+	row := defaultGetCommentRow()
 	row.Extract = pgtype.Numeric{Int: big.NewInt(1), Valid: false}
 	_, err := GetCommentRowToComment(row)
 	if err == nil {
@@ -366,7 +563,7 @@ func TestCommentRowToComment_InvalidTimestamp(t *testing.T) {
 }
 
 func TestCommentRowToComment_TimestampTooOld(t *testing.T) {
-	row := defaultCommentRow()
+	row := defaultGetCommentRow()
 	row.Extract = validPgtypeNumeric(1000)
 	_, err := GetCommentRowToComment(row)
 	if err == nil {
@@ -377,7 +574,7 @@ func TestCommentRowToComment_TimestampTooOld(t *testing.T) {
 // Checks that the timestamp is converted into the Unix second format.
 func TestCommentRowToComment_TimestampFormat(t *testing.T) {
 	// Create a row with a valid timestamp
-	row := defaultCommentRow()
+	row := defaultGetCommentRow()
 
 	// Convert the row to a Comment
 	convertedRow, err := GetCommentRowToComment(row)
@@ -392,36 +589,108 @@ func TestCommentRowToComment_TimestampFormat(t *testing.T) {
 	}
 }
 
-// --- CommentRowsToComments tests ---
+func TestGetCommentRowToComment_ValidListingTitle(t *testing.T) {
+	row := defaultGetCommentRow()
+	comment, err := GetCommentRowToComment(row)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if comment.ListingTitle == nil || *comment.ListingTitle != row.ListingTitle.String {
+		t.Errorf("Expected ListingTitle '%s', got '%v'", row.ListingTitle.String, comment.ListingTitle)
+	}
+}
 
-func TestCommentRowsToComments_Valid(t *testing.T) {
-	row := defaultCommentRow()
-	rows := []sqlc.GetCommentsByListingIDRow{row}
+func TestGetCommentRowToComment_InvalidListingTitle(t *testing.T) {
+	row := defaultGetCommentRow()
+	row.ListingTitle = pgtype.Text{String: "", Valid: false}
+	comment, err := GetCommentRowToComment(row)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if comment.ListingTitle != nil {
+		t.Errorf("Expected ListingTitle to be nil, since input pgtype is invalid, got '%v'", comment.ListingTitle)
+	}
+}
+
+func TestGetCommentRowToComment_ValidIPNonce(t *testing.T) {
+	row := defaultGetCommentRow()
+	comment, err := GetCommentRowToComment(row)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if comment.IPNonce == nil || *comment.IPNonce != row.IpNonce.String {
+		t.Errorf("Expected IPNonce '%s', got '%v'", row.IpNonce.String, comment.IPNonce)
+	}
+}
+
+func TestGetCommentRowToComment_InvalidIPNonce(t *testing.T) {
+	row := defaultGetCommentRow()
+	row.IpNonce = pgtype.Text{String: "", Valid: false}
+	comment, err := GetCommentRowToComment(row)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if comment.IPNonce != nil {
+		t.Errorf("Expected IPNonce to be nil, since input pgtype is invalid, got '%v'", comment.IPNonce)
+	}
+}
+
+// --- GetCommentRowsToComments tests ---
+
+func TestGetCommentRowsToComments_Valid(t *testing.T) {
+	rows := []sqlc.GetCommentsByListingIDRow{defaultGetCommentRow(), defaultGetCommentRow(), defaultGetCommentRow(), defaultGetCommentRow()}
 	comments, err := GetCommentRowsToComments(rows)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	if len(comments) != 1 {
-		t.Errorf("Expected 1 comment, got %d", len(comments))
+	if len(comments) != len(rows) {
+		t.Errorf("Expected %d comment, got %d", len(rows), len(comments))
+	}
+	for i, comment := range comments {
+		t.Log("Testing comment #", i)
+
+		// Check each conversion
+		checkGenericRowToCommentConversion(rows[i], &comment, t)
 	}
 }
 
-func TestCommentRowsToComments_InvalidRow(t *testing.T) {
-	row := defaultCommentRow()
-	badRow := defaultCommentRow()
+func TestGetCommentRowsToComments_InvalidRow(t *testing.T) {
+	badRow := defaultGetCommentRow()
 	badRow.Extract = pgtype.Numeric{Int: big.NewInt(1), Valid: false}
-	rows := []sqlc.GetCommentsByListingIDRow{row, badRow}
+	rows := []sqlc.GetCommentsByListingIDRow{defaultGetCommentRow(), defaultGetCommentRow(), badRow, defaultGetCommentRow()}
 	_, err := GetCommentRowsToComments(rows)
 	if err == nil {
 		t.Error("Expected error for invalid row in slice")
 	}
 }
 
-// --- CommentToCommentRow and CommentsToCommentRows tests ---
+func TestGetCommentRowsToComments_ListingTitle(t *testing.T) {
+	row := defaultGetCommentRow()
+	rows := []sqlc.GetCommentsByListingIDRow{row, defaultGetCommentRow(), defaultGetCommentRow()}
+	comments, err := GenericSQLCRowsToComments(rows)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if len(comments) != len(rows) {
+		t.Fatalf("Expected %d comment, got %d", len(rows), len(comments))
+	}
+	if comments[0].ListingTitle == nil || *comments[0].ListingTitle != row.ListingTitle.String {
+		t.Errorf("Expected ListingTitle '%s', got '%v'", row.ListingTitle.String, comments[0].ListingTitle)
+	}
+	for i, comment := range comments {
+		t.Log("Testing comment #", i)
 
-func TestCommentToCommentRow_AndBack(t *testing.T) {
+		// Check each conversion
+		checkGenericRowToCommentConversion(rows[i], &comment, t)
+	}
+}
+
+// --- CommentToGetCommentRow and CommentsToGetCommentRows tests ---
+
+func TestCommentToGetCommentRow_AndBack(t *testing.T) {
 	comment := defaultComment()
 	row := CommentToGetCommentRow(comment)
+	checkCommentToGenericRowConversion(comment, row, t)
 	// Convert back to Comment
 	got, err := GetCommentRowToComment(*row)
 	if err != nil {
@@ -430,12 +699,101 @@ func TestCommentToCommentRow_AndBack(t *testing.T) {
 	if got.CommentID != comment.CommentID || got.ListingID != comment.ListingID {
 		t.Errorf("Round-trip conversion failed: %+v vs %+v", got, comment)
 	}
+	checkGenericRowToCommentConversion(row, &comment, t)
 }
 
-func TestCommentsToCommentRows_Empty(t *testing.T) {
+func TestCommentToGetCommentRow_ListingTitle(t *testing.T) {
+	comment := defaultComment()
+	row := CommentToGetCommentRow(comment)
+	if row.ListingTitle.String != *comment.ListingTitle {
+		t.Errorf("Expected ListingTitle '%s', got '%s'", *comment.ListingTitle, row.ListingTitle.String)
+	}
+	if !row.ListingTitle.Valid {
+		t.Error("Expected ListingTitle to be valid")
+
+		checkCommentToGenericRowConversion(comment, row, t)
+	}
+}
+
+func TestCommentToGetCommentRow_NilListingTitle(t *testing.T) {
+	comment := defaultComment()
+	comment.ListingTitle = nil
+	row := CommentToGetCommentRow(comment)
+	if row.ListingTitle.Valid {
+		t.Error("Expected ListingTitle to be invalid when Comment.ListingTitle is nil")
+	}
+	checkCommentToGenericRowConversion(comment, row, t)
+}
+
+func TestCommentToGetCommentRow_IPNonce(t *testing.T) {
+	comment := defaultComment()
+	row := CommentToGetCommentRow(comment)
+	if row.IpNonce.String != *comment.IPNonce {
+		t.Errorf("Expected IPNonce '%s', got '%s'", *comment.IPNonce, row.IpNonce.String)
+	}
+	if !row.IpNonce.Valid {
+		t.Error("Expected IPNonce to be valid")
+
+		checkCommentToGenericRowConversion(comment, row, t)
+	}
+}
+
+func TestCommentToGetCommentRow_NilIPNonce(t *testing.T) {
+	comment := defaultComment()
+	comment.IPNonce = nil
+	row := CommentToGetCommentRow(comment)
+	if row.IpNonce.Valid {
+		t.Error("Expected IPNonce to be invalid when Comment.IPNonce is nil")
+	}
+	checkCommentToGenericRowConversion(comment, row, t)
+}
+
+func TestCommentsToGetCommentRows_Empty(t *testing.T) {
 	rows := CommentsToGetCommentRows([]Comment{})
 	if len(rows) != 0 {
 		t.Errorf("Expected 0 rows, got %d", len(rows))
+	}
+}
+
+func TestCommentsToGetCommentRows_ListingTitle(t *testing.T) {
+	comment := defaultComment()
+	comments := []Comment{comment, comment}
+	rows := CommentsToGetCommentRows(comments)
+	if len(rows) != 2 {
+		t.Fatalf("Expected 2 rows, got %d", len(rows))
+	}
+	if rows[1].ListingTitle.String != *comment.ListingTitle {
+		t.Errorf("Expected ListingTitle '%s', got '%s'", *comment.ListingTitle, rows[1].ListingTitle.String)
+	}
+	if !rows[1].ListingTitle.Valid {
+		t.Error("Expected ListingTitle to be valid")
+	}
+	for i, row := range rows {
+		t.Log("Testing row #", i)
+
+		// Check each conversion
+		checkCommentToGenericRowConversion(comments[i], row, t)
+	}
+}
+
+func TestCommentsToGetCommentRows_IPNonce(t *testing.T) {
+	comment := defaultComment()
+	comments := []Comment{comment, comment}
+	rows := CommentsToGetCommentRows(comments)
+	if len(rows) != 2 {
+		t.Fatalf("Expected 2 rows, got %d", len(rows))
+	}
+	if rows[1].IpNonce.String != *comment.IPNonce {
+		t.Errorf("Expected IPNonce '%s', got '%s'", *comment.IPNonce, rows[1].IpNonce.String)
+	}
+	if !rows[1].IpNonce.Valid {
+		t.Error("Expected IPNonce to be valid")
+	}
+	for i, row := range rows {
+		t.Log("Testing row #", i)
+
+		// Check each conversion
+		checkCommentToGenericRowConversion(comments[i], row, t)
 	}
 }
 
@@ -458,5 +816,52 @@ func TestToResponseSlice(t *testing.T) {
 	}
 	if resps[0].TargetListing != comment.ListingID {
 		t.Errorf("Unexpected TargetListing: %s", resps[0].TargetListing)
+	}
+}
+
+// ================================================================================================================= //
+//                                          Helper function Tests                                                    //
+// ================================================================================================================= //
+
+// --- convertPGListingTitleToAPI and convertAPIListingTitleToPG tests ---
+
+func TestConvertPGTextToAPI_Valid(t *testing.T) {
+	pgText := pgtype.Text{String: "Sample Title", Valid: true}
+	apiString := convertPGTextToString(pgText)
+	if apiString == nil {
+		t.Fatal("Expected non-nil API string for valid pgtype.Text")
+	}
+	if *apiString != pgText.String {
+		t.Errorf("Expected API string '%s', got '%s'", pgText.String, *apiString)
+	}
+}
+
+func TestConvertPGTextToAPI_Invalid(t *testing.T) {
+	pgText := pgtype.Text{String: "Should be nil", Valid: false}
+	apiString := convertPGTextToString(pgText)
+	if apiString != nil {
+		t.Errorf("Expected nil API string for invalid pgtype.Text, got '%v'", *apiString)
+	}
+}
+
+func TestConvertAPIStringToPG_NonNil(t *testing.T) {
+	apiString := aws.String("API Title")
+	pgText := convertStringToPGText(apiString)
+	if !pgText.Valid {
+		t.Error("Expected pgtype.Text.Valid to be true for non-nil API string")
+	}
+	if pgText.String != *apiString {
+		t.Errorf("Expected pgtype.Text.String '%s', got '%s'", *apiString, pgText.String)
+	}
+}
+
+func TestConvertAPIStringToPG_Nil(t *testing.T) {
+	var apiString *string = nil
+	pgText := convertStringToPGText(apiString)
+	if pgText.Valid {
+		t.Error("Expected pgtype.Text.Valid to be false for nil API string")
+	}
+	if pgText.String != "" {
+		t.Errorf("Expected pgtype.Text.String to be empty for nil API string, got '%s'", pgText.String)
 	}
 }

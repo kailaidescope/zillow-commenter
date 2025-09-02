@@ -617,7 +617,12 @@ async function getListingTitle() {
     // Called when response is recieved from content script
     console.log("Got title:",response.title);
 
-    return sanitizeListingTitle(response.title)
+    if (response.title === undefined) {
+        console.error("Title is undefined");
+        throw new Error("Title is undefined");
+    }
+
+    return sanitizeListingTitle(response.title);
 }
 
 // Sanitizes the listing title to only include printable ascii characters

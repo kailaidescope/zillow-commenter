@@ -46,3 +46,12 @@ jobs:
         run: |
           cd backend
           go test -v ./api/models
+        
+      - name: Run Encryption Tests
+        run: |
+          cd backend
+          go test -v ./encryption
+
+      
+
+      

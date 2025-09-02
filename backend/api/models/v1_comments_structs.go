@@ -13,6 +13,7 @@ import (
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -34,6 +35,7 @@ type Comment struct {
 	CommentText  string    `json:"comment_text"`
 	Timestamp    int64     `json:"timestamp"`
 	ListingTitle *string   `json:"listing_title"`
+	IPNonce      *string   `json:"ip_nonce"`
 }
 
 // ResponseComment represents a comment on a listing that can be safely returned to the user.
@@ -147,15 +149,14 @@ func GenericSQLCRowToComment(row interface{}) (*Comment, error) {
 	if !ok {
 		return nil, errors.New("missing ListingTitle field")
 	}
-	listingTitlePGWrapper := listingTitleField.Interface().(pgtype.Text)
+	listingTitle := convertPGTextToString(listingTitleField.Interface().(pgtype.Text))
 
-	// Set the listing title to nil unless listingTitlePGWrapper.Valid is true
-	var listingTitle *string = nil
-	if listingTitlePGWrapper.Valid {
-		listingTitle = &listingTitlePGWrapper.String
-	} else {
-		log.Println("Listing title was converted to nil from postgres type, since valid=false.")
+	// Extract IPNonce
+	ipNonceField, ok := getFieldAndValidity("IpNonce")
+	if !ok {
+		return nil, errors.New("missing IpNonce field")
 	}
+	ipNonce := convertPGTextToString(ipNonceField.Interface().(pgtype.Text))
 
 	return &Comment{
 		ListingID:    listingID,
@@ -166,6 +167,7 @@ func GenericSQLCRowToComment(row interface{}) (*Comment, error) {
 		CommentText:  commentText,
 		Timestamp:    timestamp,
 		ListingTitle: listingTitle,
+		IPNonce:      ipNonce,
 	}, nil
 }
 
@@ -180,34 +182,6 @@ func GenericSQLCRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]Comment
 		comments = append(comments, *comment)
 	}
 	return comments, nil
-}
-
-// ToPostCommentRow converts a Comment struct used by the API to a sqlc.PostCommentRow struct used by postgres.
-//
-// Input:
-//   - comment: a Comment struct containing the comment data.
-//
-// Output:
-//   - *sqlc.PostCommentRow: a pointer to a sqlc.PostCommentRow struct containing the comment data.
-func (comment *Comment) ToPostCommentRow() *sqlc.PostCommentRow {
-	// Convert go types to postgres types.
-
-	// Convert the timestamp to pgtype.Numeric.
-	extract := pgtype.Numeric{
-		Int:   big.NewInt(comment.Timestamp),
-		Valid: true,
-	}
-
-	// Create a GetCommentsByListingIDRow struct from the Comment struct.
-	return &sqlc.PostCommentRow{
-		CommentID:   pgtype.UUID{Bytes: [16]byte(comment.CommentID), Valid: true},
-		ListingID:   comment.ListingID,
-		UserIp:      comment.UserIP,
-		UserID:      comment.UserID,
-		Username:    comment.Username,
-		CommentText: comment.CommentText,
-		Extract:     extract,
-	}
 }
 
 // GetCommentRowToComment converts a postgres database row from GetCommentsByListingID to a Comment struct used by the API.
@@ -242,15 +216,21 @@ func GetCommentRowToComment(row sqlc.GetCommentsByListingIDRow) (*Comment, error
 		return nil, errors.New("timestamp is not valid. should be greater than 1748389238, but is " + strconv.Itoa(int(timestamp)))
 	}
 
+	listingTitle := convertPGTextToString(row.ListingTitle)
+
+	ipNonce := convertPGTextToString(row.IpNonce)
+
 	// Convert a database row to a Comment struct.
 	return &Comment{
-		ListingID:   row.ListingID,
-		CommentID:   commentUUID,
-		UserIP:      row.UserIp,
-		UserID:      row.UserID,
-		Username:    row.Username,
-		CommentText: row.CommentText,
-		Timestamp:   timestamp,
+		ListingID:    row.ListingID,
+		CommentID:    commentUUID,
+		UserIP:       row.UserIp,
+		UserID:       row.UserID,
+		Username:     row.Username,
+		CommentText:  row.CommentText,
+		Timestamp:    timestamp,
+		ListingTitle: listingTitle,
+		IPNonce:      ipNonce,
 	}, nil
 }
 
@@ -265,6 +245,29 @@ func GetCommentRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]Comment,
 		comments = append(comments, *comment)
 	}
 	return comments, nil
+}
+
+// ToPostCommentParams converts a Comment struct used by the API to a sqlc.PostCommentParams struct used by postgres to upload a comment.
+//
+// Input:
+//   - comment: a Comment struct containing the comment data.
+//
+// Output:
+//   - *sqlc.PostCommentParams: a pointer to a sqlc.PostCommentParams struct containing postable comment data.
+func (comment *Comment) ToPostCommentParams() *sqlc.PostCommentParams {
+	// Convert go types to postgres types.
+
+	// Create a GetCommentsByListingIDRow struct from the Comment struct.
+	return &sqlc.PostCommentParams{
+		CommentID:    pgtype.UUID{Bytes: [16]byte(comment.CommentID), Valid: true},
+		ListingID:    comment.ListingID,
+		UserIp:       comment.UserIP,
+		UserID:       comment.UserID,
+		Username:     comment.Username,
+		CommentText:  comment.CommentText,
+		ListingTitle: convertStringToPGText(comment.ListingTitle),
+		IpNonce:      convertStringToPGText(comment.IPNonce),
+	}
 }
 
 // CommentToGetCommentRow converts a Comment struct used by the API to a sqlc.GetCommentsByListingIDRow struct used by postgres.
@@ -286,13 +289,15 @@ func CommentToGetCommentRow(comment Comment) *sqlc.GetCommentsByListingIDRow {
 
 	// Create a GetCommentsByListingIDRow struct from the Comment struct.
 	return &sqlc.GetCommentsByListingIDRow{
-		CommentID:   pgtype.UUID{Bytes: [16]byte(comment.CommentID), Valid: true},
-		ListingID:   comment.ListingID,
-		UserIp:      comment.UserIP,
-		UserID:      comment.UserID,
-		Username:    comment.Username,
-		CommentText: comment.CommentText,
-		Extract:     extract,
+		CommentID:    pgtype.UUID{Bytes: [16]byte(comment.CommentID), Valid: true},
+		ListingID:    comment.ListingID,
+		UserIp:       comment.UserIP,
+		UserID:       comment.UserID,
+		Username:     comment.Username,
+		CommentText:  comment.CommentText,
+		Extract:      extract,
+		ListingTitle: convertStringToPGText(comment.ListingTitle),
+		IpNonce:      convertStringToPGText(comment.IPNonce),
 	}
 }
 
@@ -326,4 +331,46 @@ func ToResponseSlice(comments []Comment) []ResponseComment {
 	}
 
 	return response
+}
+
+// ================================================================================================================= //
+//                                              Helper functions                                                     //
+// ================================================================================================================= //
+
+// convertPGTextToString converts text from a Postgres format to one the API can use.
+// Postgres format is pgtype.text, while the API uses *string.
+//
+// Input:
+//   - pgtext: a pgtype.Text struct in Postgres format.
+//
+// Output:
+//   - *string: the text in API format (i.e. a string pointer), or nil if the input is invalid.
+func convertPGTextToString(pgtext pgtype.Text) *string {
+	// Set the string to nil unless pgtext.Valid is true
+	var convertedString *string = nil
+	if pgtext.Valid {
+		convertedString = aws.String(pgtext.String)
+	} else {
+		log.Println("PGText was converted to nil from postgres type, since valid=false.")
+	}
+
+	return convertedString
+}
+
+// convertStringToPGText converts a string from API format to Postgres format.
+// API format is *string, while Postgres format is pgtype.text.
+//
+// Input:
+//   - apiString: text in a *string (API format).
+//
+// Output:
+//   - pgtype.Text: the text in Postgres format.
+func convertStringToPGText(apiString *string) pgtype.Text {
+	convertedPgtext := pgtype.Text{String: "", Valid: false}
+	if apiString != nil {
+		convertedPgtext.String = *apiString
+		convertedPgtext.Valid = true
+	}
+
+	return convertedPgtext
 }
