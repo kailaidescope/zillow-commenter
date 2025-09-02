@@ -48,6 +48,8 @@ jobs:
           go test -v ./api/models
         
       - name: Run Encryption Tests
+        env: 
+          ZILLOWETTE_AES_KEY: ${{ secrets.ZILLOWETTE_AES_KEY }}
         run: |
           cd backend
           go test -v ./encryption
