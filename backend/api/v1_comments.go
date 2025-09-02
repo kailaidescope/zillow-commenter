@@ -97,6 +97,13 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	commentText := c.PostForm("comment_text")
 	listingTitle := c.PostForm("listing_title")
 
+	err = sqlc.ValidateIP(server.Validator, userIP)
+	if err != nil {
+		log.Println("Error validating user IP:", err)
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
+		return
+	}
+
 	// Log the request details
 	log.Printf("PostListingComment called with listing_id: %s, user_id: %s, username: %s, comment_text: %s, listing_title: %s\nfrom IP: %s\nat timestamp: %d",
 		listingID, userID, username, commentText, listingTitle, userIP, timestamp)
@@ -109,15 +116,23 @@ func (server *Server) PostListingComment(c *gin.Context) {
 		return
 	}
 
+	encryptedIPPackage, err := encryption.EncryptStringAESGCM(server.aesCipherGCM, userIP)
+	if err != nil {
+		log.Println("Error encrypting user IP:", err)
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
+		return
+	}
+
 	// Create a new comment
 	newComment := sqlc.PostCommentParams{
 		CommentID:    pgtype.UUID{Bytes: [16]byte(commentID), Valid: true}, // Unique comment ID based on timestamp
 		ListingID:    listingID,
-		UserIp:       userIP,
+		UserIp:       encryptedIPPackage.EncryptedHexString,
 		UserID:       userID,
 		Username:     username,
 		CommentText:  commentText,
-		ListingTitle: pgtype.Text{String: listingTitle, Valid: true}, // Convert listingTitle to a pgtype and mark it as valid (i.e. not null)
+		ListingTitle: pgtype.Text{String: listingTitle, Valid: true},                      // Convert listingTitle to a pgtype and mark it as valid (i.e. not null)
+		IpNonce:      pgtype.Text{String: encryptedIPPackage.NonceHexString, Valid: true}, // Convert ipNonce to a pgtype and mark it as valid (i.e. not null)
 	}
 
 	// Log the new comment creation
@@ -143,17 +158,6 @@ func (server *Server) PostListingComment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, getReturnableErrorMessage("Invalid input data"))
 		return
 	}
-
-	// Encrypt the IP after validation
-
-	encryptedIpPackage, err := encryption.EncryptStringAESGCM(server.aesCipherGCM, newComment.UserIp)
-	if err != nil {
-		log.Println("Error encrypting UserIp:", err)
-		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
-	}
-
-	// TODO: Send this to the db
-	log.Println("Encrypted IP:", encryptedIpPackage)
 
 	// Acquire a Postgres connection from the pool
 	postgresConnection, err := server.GetPostgresPool().Acquire(context.TODO())

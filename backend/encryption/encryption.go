@@ -11,8 +11,8 @@ import (
 )
 
 type EncryptedPackage struct {
-	encryptedHexString string
-	nonceHexString     string
+	EncryptedHexString string
+	NonceHexString     string
 }
 
 func GetNewAESCipher(encryptionKey string) (cipher.AEAD, error) {
@@ -62,8 +62,8 @@ func EncryptStringAESGCM(aesgcm cipher.AEAD, textToEncrypt string) (*EncryptedPa
 
 	// Package encrypted data with nonce (also converted to hex)
 	encryptedOutput := &EncryptedPackage{
-		encryptedHexString: encryptedText,
-		nonceHexString:     hex.EncodeToString(nonce),
+		EncryptedHexString: encryptedText,
+		NonceHexString:     hex.EncodeToString(nonce),
 	}
 
 	return encryptedOutput, nil
@@ -80,13 +80,13 @@ func EncryptStringAESGCM(aesgcm cipher.AEAD, textToEncrypt string) (*EncryptedPa
 //   - error: non-nil if an error occurred while decrypting your data. String will be empty in this case
 func DecryptStringAESGCM(aesgcm cipher.AEAD, encryptedPacakge *EncryptedPackage) (string, error) {
 	// Get raw encrypted bytes from hexadecimal format
-	bytesToDecrypt, err := hex.DecodeString(encryptedPacakge.encryptedHexString)
+	bytesToDecrypt, err := hex.DecodeString(encryptedPacakge.EncryptedHexString)
 	if err != nil {
 		return "", errors.Join(errors.New("couldn't convert text to bytes, text must be in hexadecimal format"), err)
 	}
 
 	// Recreate nonce bytes from package hexadecimal
-	nonce, err := hex.DecodeString(encryptedPacakge.nonceHexString)
+	nonce, err := hex.DecodeString(encryptedPacakge.NonceHexString)
 	if err != nil {
 		return "", errors.Join(errors.New("couldn't recreate nonce from hex string during decryption"), err)
 	}

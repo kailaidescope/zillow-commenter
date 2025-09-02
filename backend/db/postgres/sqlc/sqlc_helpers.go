@@ -216,7 +216,10 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 
 	// USER IP
 
-	userIpValidation := "required,ip"
+	// Minimum encrypted IP size (0.0.0.0) is 46, so all encrypted IPs must be over 40 chars long
+	// Maximum encrypted IP size allowed by the db is 130
+	// All encrypted IPs are stored in hex format
+	userIpValidation := "required,hexadecimal,min=40,max=130"
 	err = sl.Validator().Var(postCommentParams.UserIp, userIpValidation)
 	if err != nil {
 		sl.ReportError(postCommentParams, "UserIp", "UserIp", userIpValidation, "")
@@ -262,6 +265,20 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 	err = sl.Validator().Var(postCommentParams.ListingTitle.String, listingTitleValidation)
 	if err != nil {
 		sl.ReportError(postCommentParams.ListingTitle.String, "ListingTitle", "String", listingTitleValidation, "")
+	}
+
+	// IP NONCE
+
+	// Check that the pgtype is valid
+	if !postCommentParams.IpNonce.Valid {
+		sl.ReportError(postCommentParams.IpNonce.Valid, "IpNonce", "Valid", "IpNonce must be valid", "")
+	}
+	// Check that the string is valid. Nonces must be length 24 to be valid for AES-256
+	// All IP nonces are stored in hexadecimal format
+	ipNonceValidation := "required,hexadecimal,len=24"
+	err = sl.Validator().Var(postCommentParams.IpNonce.String, ipNonceValidation)
+	if err != nil {
+		sl.ReportError(postCommentParams.IpNonce.String, "IpNonce", "String", ipNonceValidation, "")
 	}
 }
 
@@ -351,6 +368,23 @@ func customUUIDValidator(uuid uuid.UUID) error {
 		return errors.New("UUID version is not 7")
 	}
 
+	return nil
+}
+
+// ValidateIP checks that an recieved IP is in a valid IP format
+//
+// Input:
+//   - validate: singleton validate instance from the server to run tests
+//   - ip: the IP string to test
+//
+// Output:
+//   - error: non-nil if the validation failed
+func ValidateIP(validate *validator.Validate, ip string) error {
+	userIpValidation := "required,ip"
+	err := validate.Var(ip, userIpValidation)
+	if err != nil {
+		return errors.Join(errors.New("error validating ip format: "+userIpValidation), err)
+	}
 	return nil
 }
 

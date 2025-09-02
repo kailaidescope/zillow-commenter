@@ -241,7 +241,7 @@ func TestEncryptDecryptRoundTrip_InvalidNonce(t *testing.T) {
 	}
 
 	// Convert nonce from hex to bytes
-	nonceBytes, err := hex.DecodeString(encryptedPackage.nonceHexString)
+	nonceBytes, err := hex.DecodeString(encryptedPackage.NonceHexString)
 	if err != nil {
 		t.Fatal("Failed to convert nonce to bytes for tampering")
 	}
@@ -252,7 +252,7 @@ func TestEncryptDecryptRoundTrip_InvalidNonce(t *testing.T) {
 	tampered[0] ^= 0xFF // Flip bits in the first byte of nonce
 
 	// Place tampered nonce in package
-	encryptedPackage.nonceHexString = hex.EncodeToString(tampered)
+	encryptedPackage.NonceHexString = hex.EncodeToString(tampered)
 
 	// Attempt decryption
 	_, err = DecryptStringAESGCM(aesgcm, encryptedPackage)
@@ -268,13 +268,13 @@ func TestBasicEncryption(t *testing.T) {
 	}
 	defer cleanup(t)
 
-	input := "127.0.0.1"
+	input := "192.168.1.1"
 	encryptedPackage, err := EncryptStringAESGCM(aesgcm, input)
 	if err != nil {
 		t.Fatalf("Encryption failed: %v", err)
 	}
-	log.Println("Encrypted hex string (", len(encryptedPackage.encryptedHexString), "):", encryptedPackage.encryptedHexString)
-	log.Println("Encrypted hex string (", len(encryptedPackage.nonceHexString), "):", encryptedPackage.nonceHexString)
+	log.Println("Encrypted hex string (", len(encryptedPackage.EncryptedHexString), "):", encryptedPackage.EncryptedHexString)
+	log.Println("Nonce hex string (", len(encryptedPackage.NonceHexString), "):", encryptedPackage.NonceHexString)
 	decrypted, err := DecryptStringAESGCM(aesgcm, encryptedPackage)
 	if err != nil {
 		t.Fatalf("Decryption failed: %v", err)
@@ -283,4 +283,5 @@ func TestBasicEncryption(t *testing.T) {
 	if decrypted != input {
 		t.Errorf("Round-trip failed: got %q, want %q", decrypted, input)
 	}
+	log.Println("Hi there :3 Enjoy some free encryption!")
 }
