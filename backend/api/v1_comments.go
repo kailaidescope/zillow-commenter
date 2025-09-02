@@ -36,7 +36,7 @@ func (server *Server) GetListingComments(c *gin.Context) {
 
 	// Get information from the request context
 	listingID := c.Param("listing_id")
-	userIP, err := server.getUserIP(c)
+	_, err := server.getUserIP(c)
 	if err != nil {
 		log.Println("Error getting user IP:", err)
 		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
@@ -44,7 +44,7 @@ func (server *Server) GetListingComments(c *gin.Context) {
 	}
 	timestamp := time.Now().Unix()
 
-	log.Println("GetListingComments called with listing_id:", listingID, "\nfrom IP:", userIP, "\nat timestamp:", timestamp)
+	log.Println("GetListingComments called with listing_id:", listingID, "\nat timestamp:", timestamp)
 
 	// Check if the listing exists in the temporary comment database
 	comments, err := server.GetComments(listingID)
@@ -105,8 +105,8 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	}
 
 	// Log the request details
-	log.Printf("PostListingComment called with listing_id: %s, user_id: %s, username: %s, comment_text: %s, listing_title: %s\nfrom IP: %s\nat timestamp: %d",
-		listingID, userID, username, commentText, listingTitle, userIP, timestamp)
+	log.Printf("PostListingComment called with listing_id: %s, user_id: %s, username: %s, comment_text: %s, listing_title: %s\nat timestamp: %d",
+		listingID, userID, username, commentText, listingTitle, timestamp)
 
 	// Generate a new UUID for the comment using a timestamp-based version (v7) to ensure uniqueness
 	commentID, err := uuid.NewV7()
@@ -136,8 +136,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	}
 
 	// Log the new comment creation
-	log.Println("New comment submitted for listing:", listingID, "by user:", username, "at timestamp:", timestamp)
-	log.Println("Comment details:", newComment)
+	log.Println("New comment submitted for listing:", listingID, "by user:", username, "at timestamp:", timestamp, "with text: '", commentText, "'")
 	log.Println("Sanitizing and validating comment parameters...")
 
 	// Perform first round validation on new comment parameters
@@ -219,14 +218,14 @@ func (server *Server) PostListingComment(c *gin.Context) {
 //   - 200: A JSON object containing the generated user ID. ID is a V7 (Time) UUID.
 func (server *Server) GenerateUserID(c *gin.Context) {
 	// Get information from the request context
-	userIP, err := server.getUserIP(c)
+	_, err := server.getUserIP(c)
 	if err != nil {
 		log.Println("Error getting user IP:", err)
 		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
 		return
 	}
 	timestamp := time.Now().Unix()
-	log.Println("GenerateUserID called from IP:", userIP, "at timestamp:", timestamp)
+	log.Println("GenerateUserID called at timestamp:", timestamp)
 
 	// Generate a new UUID for the user using a timestamp-based version (v7) to ensure uniqueness
 	userID, err := uuid.NewV7()
