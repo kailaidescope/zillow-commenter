@@ -1245,3 +1245,61 @@ func TestCustomUUIDValidator_SlightlyInFuture(t *testing.T) {
 		t.Error("Expected error for UUID slightly in the future, got nil")
 	}
 }
+
+// ===================================================================================================================== //
+//                                         Custom IP Validator Tests                                                     //
+// ===================================================================================================================== //
+
+func TestValidateIP_ValidIPv4(t *testing.T) {
+	_, validate := ValidationSetupAndTeardown(t)
+	ip := "192.168.1.1"
+	err := ValidateIP(validate, ip)
+	if err != nil {
+		t.Errorf("Expected valid IPv4, got error: %v", err)
+	}
+}
+
+func TestValidateIP_ValidIPv6(t *testing.T) {
+	_, validate := ValidationSetupAndTeardown(t)
+	ip := "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
+	err := ValidateIP(validate, ip)
+	if err != nil {
+		t.Errorf("Expected valid IPv6, got error: %v", err)
+	}
+}
+
+func TestValidateIP_InvalidIP(t *testing.T) {
+	_, validate := ValidationSetupAndTeardown(t)
+	ip := "not_an_ip"
+	err := ValidateIP(validate, ip)
+	if err == nil {
+		t.Error("Expected error for invalid IP, got nil")
+	}
+}
+
+func TestValidateIP_EmptyString(t *testing.T) {
+	_, validate := ValidationSetupAndTeardown(t)
+	ip := ""
+	err := ValidateIP(validate, ip)
+	if err == nil {
+		t.Error("Expected error for empty IP, got nil")
+	}
+}
+
+func TestValidateIP_IPv4WithPort(t *testing.T) {
+	_, validate := ValidationSetupAndTeardown(t)
+	ip := "192.168.1.1:8080"
+	err := ValidateIP(validate, ip)
+	if err == nil {
+		t.Error("Expected error for IPv4 with port, got nil")
+	}
+}
+
+func TestValidateIP_IPv6WithPort(t *testing.T) {
+	_, validate := ValidationSetupAndTeardown(t)
+	ip := "[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:443"
+	err := ValidateIP(validate, ip)
+	if err == nil {
+		t.Error("Expected error for IPv6 with port, got nil")
+	}
+}
