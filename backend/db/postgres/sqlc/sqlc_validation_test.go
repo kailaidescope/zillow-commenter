@@ -857,13 +857,19 @@ func TestPostCommentParamsValidation_CommentText_AllNonPrintableASCII(t *testing
 
 	for i := 0; i < 32; i++ {
 		if i == 10 {
-			continue
-		}
-		params := GetValidPostCommentParams(ValidParamsIPv4)
-		params.CommentText = "Valid text" + string(rune(i))
-		err := validate.Struct(params)
-		if err == nil {
-			t.Error("Expected error for CommentText containing non-printable ASCII (code ", i, "), got nil")
+			params := GetValidPostCommentParams(ValidParamsIPv4)
+			params.CommentText = "Valid text" + string(rune(i))
+			err := validate.Struct(params)
+			if err != nil {
+				t.Error("Expected no error for CommentText containing newline (ASCII code ", i, "), but got:", err)
+			}
+		} else {
+			params := GetValidPostCommentParams(ValidParamsIPv4)
+			params.CommentText = "Valid text" + string(rune(i))
+			err := validate.Struct(params)
+			if err == nil {
+				t.Error("Expected error for CommentText containing non-printable ASCII (code ", i, "), got nil")
+			}
 		}
 	}
 	// DEL character (ASCII 127)
