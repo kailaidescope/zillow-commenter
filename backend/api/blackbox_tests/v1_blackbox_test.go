@@ -452,6 +452,163 @@ func TestPostComment_RejectsTooLongCommentText(t *testing.T) {
 	}
 }
 
+func TestPostComment_RejectsMissingCommentText(t *testing.T) {
+	testingSuite, apiIP := SetupAndTeardown(t)
+	defer testingSuite(t)
+
+	v7, err := uuid.NewV7()
+	if err != nil {
+		t.Fatalf("Failed to generate V7 UUID: %v", err)
+	}
+
+	values := url.Values{}
+	values.Set("listing_id", getTestListingId())
+	values.Set("user_id", v7.String())
+	values.Set("username", "TestUser")
+	values.Set("comment_text", "") // Missing comment text
+	values.Set("listing_title", getTestListingTitle())
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/x-www-form-urlencoded").
+		SetFormDataFromValues(values).
+		Post(apiIP + "/api/v1/comments")
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if resp.StatusCode() != 400 {
+		t.Errorf("Expected 400 for missing comment_text, got %d: %s", resp.StatusCode(), formatResponse(resp))
+	}
+}
+
+func TestPostComment_RejectsNonPrintableASCIIInCommentText(t *testing.T) {
+	testingSuite, apiIP := SetupAndTeardown(t)
+	defer testingSuite(t)
+
+	v7, err := uuid.NewV7()
+	if err != nil {
+		t.Fatalf("Failed to generate V7 UUID: %v", err)
+	}
+
+	values := url.Values{}
+	values.Set("listing_id", getTestListingId())
+	values.Set("user_id", v7.String())
+	values.Set("username", "TestUser")
+	values.Set("comment_text", "This is a valid comment.\a") // ASCII 7 (bell)
+	values.Set("listing_title", getTestListingTitle())
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/x-www-form-urlencoded").
+		SetFormDataFromValues(values).
+		Post(apiIP + "/api/v1/comments")
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if resp.StatusCode() != 400 {
+		t.Errorf("Expected 400 for non-printable ASCII in comment_text, got %d: %s", resp.StatusCode(), formatResponse(resp))
+	}
+}
+
+func TestPostComment_RejectsAllNonPrintableASCIIInCommentText(t *testing.T) {
+	testingSuite, apiIP := SetupAndTeardown(t)
+	defer testingSuite(t)
+
+	for i := 0; i < 32; i++ {
+		v7, err := uuid.NewV7()
+		if err != nil {
+			t.Fatalf("Failed to generate V7 UUID: %v", err)
+		}
+		values := url.Values{}
+		values.Set("listing_id", getTestListingId())
+		values.Set("user_id", v7.String())
+		values.Set("username", "TestUser")
+		comment := "Valid text" + string(rune(i))
+		values.Set("comment_text", comment)
+		values.Set("listing_title", getTestListingTitle())
+
+		client := resty.New()
+		resp, err := client.R().
+			SetHeader("Content-Type", "application/x-www-form-urlencoded").
+			SetFormDataFromValues(values).
+			Post(apiIP + "/api/v1/comments")
+
+		if err != nil {
+			t.Fatalf("Request failed: %v", err)
+		}
+		if i == 10 {
+			if resp.StatusCode() != 201 {
+				t.Errorf("Expected 201 for comment_text containing newline (ASCII 10), got %d: %s", resp.StatusCode(), formatResponse(resp))
+			}
+		} else {
+			if resp.StatusCode() != 400 {
+				t.Errorf("Expected 400 for comment_text containing non-printable ASCII (code %d), got %d: %s", i, resp.StatusCode(), formatResponse(resp))
+			}
+		}
+	}
+	// DEL character (ASCII 127)
+	v7, err := uuid.NewV7()
+	if err != nil {
+		t.Fatalf("Failed to generate V7 UUID: %v", err)
+	}
+	values := url.Values{}
+	values.Set("listing_id", getTestListingId())
+	values.Set("user_id", v7.String())
+	values.Set("username", "TestUser")
+	values.Set("comment_text", "Valid text"+string(rune(127)))
+	values.Set("listing_title", getTestListingTitle())
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/x-www-form-urlencoded").
+		SetFormDataFromValues(values).
+		Post(apiIP + "/api/v1/comments")
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if resp.StatusCode() != 400 {
+		t.Errorf("Expected 400 for comment_text containing non-printable ASCII (code 127), got %d: %s", resp.StatusCode(), formatResponse(resp))
+	}
+}
+
+func TestPostComment_AcceptsOnlyPrintableASCIIInCommentText(t *testing.T) {
+	testingSuite, apiIP := SetupAndTeardown(t)
+	defer testingSuite(t)
+
+	v7, err := uuid.NewV7()
+	if err != nil {
+		t.Fatalf("Failed to generate V7 UUID: %v", err)
+	}
+	printable := ""
+	for i := 32; i <= 126; i++ {
+		printable += string(rune(i))
+	}
+	comment := printable + string(rune(10)) // include newline
+
+	values := url.Values{}
+	values.Set("listing_id", getTestListingId())
+	values.Set("user_id", v7.String())
+	values.Set("username", "TestUser")
+	values.Set("comment_text", comment)
+	values.Set("listing_title", getTestListingTitle())
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/x-www-form-urlencoded").
+		SetFormDataFromValues(values).
+		Post(apiIP + "/api/v1/comments")
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if resp.StatusCode() != 201 {
+		t.Errorf("Expected 201 for comment_text with only printable ASCII, got %d: %s", resp.StatusCode(), formatResponse(resp))
+	}
+}
+
 // --- ListingTitle Tests ---
 
 func TestPostCommentParamsValidation_ListingTitle_Required(t *testing.T) {
