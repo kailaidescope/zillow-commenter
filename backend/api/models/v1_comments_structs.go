@@ -22,11 +22,11 @@ import (
 //                                               Comment Structs                                                     //
 // ================================================================================================================= //
 
-// Comment represents a comment on a listing. Should NOT be sent to users.
+// APIComment represents a comment on a listing. Should NOT be sent to users.
 //
 // Notes:
 //   - Timestamp is in microseconds since the epoch, stored as an int64. Is valid until the 29th millenium. (All hail the God Emperor of Mankind!)
-type Comment struct {
+type APIComment struct {
 	ListingID    string    `json:"listing_id"`
 	CommentID    uuid.UUID `json:"comment_id"`
 	UserIP       string    `json:"user_ip"`
@@ -60,7 +60,7 @@ type ResponseComment struct {
 // Output:
 //   - *Comment: a pointer to a Comment struct containing the comment data.
 //   - error: an error if the conversion fails, otherwise nil.
-func GenericSQLCRowToComment(row interface{}) (*Comment, error) {
+func GenericSQLCRowToComment(row interface{}) (*APIComment, error) {
 	v := reflect.ValueOf(row)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -158,7 +158,7 @@ func GenericSQLCRowToComment(row interface{}) (*Comment, error) {
 	}
 	ipNonce := convertPGTextToString(ipNonceField.Interface().(pgtype.Text))
 
-	return &Comment{
+	return &APIComment{
 		ListingID:    listingID,
 		CommentID:    commentUUID,
 		UserIP:       userIP,
@@ -172,8 +172,8 @@ func GenericSQLCRowToComment(row interface{}) (*Comment, error) {
 }
 
 // GenericSQLCRowsToComments converts a slice of generic SQLC comment rows to a slice of Comment structs.
-func GenericSQLCRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]Comment, error) {
-	var comments []Comment
+func GenericSQLCRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]APIComment, error) {
+	var comments []APIComment
 	for _, row := range rows {
 		comment, err := GenericSQLCRowToComment(row)
 		if err != nil {
@@ -192,7 +192,7 @@ func GenericSQLCRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]Comment
 // Output:
 //   - Comment: a Comment struct containing the comment data.
 //   - error: an error if the conversion fails, otherwise nil.
-func GetCommentRowToComment(row sqlc.GetCommentsByListingIDRow) (*Comment, error) {
+func GetCommentRowToComment(row sqlc.GetCommentsByListingIDRow) (*APIComment, error) {
 	// Convert postgres types to Go types.
 
 	// Convert the comment ID from pgtype.UUID to uuid.UUID.
@@ -221,7 +221,7 @@ func GetCommentRowToComment(row sqlc.GetCommentsByListingIDRow) (*Comment, error
 	ipNonce := convertPGTextToString(row.IpNonce)
 
 	// Convert a database row to a Comment struct.
-	return &Comment{
+	return &APIComment{
 		ListingID:    row.ListingID,
 		CommentID:    commentUUID,
 		UserIP:       row.UserIp,
@@ -235,8 +235,8 @@ func GetCommentRowToComment(row sqlc.GetCommentsByListingIDRow) (*Comment, error
 }
 
 // GetCommentRowsToComments converts a slice of sqlc.GetCommentsByListingIDRow to a slice of Comment structs.
-func GetCommentRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]Comment, error) {
-	var comments []Comment
+func GetCommentRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]APIComment, error) {
+	var comments []APIComment
 	for _, row := range rows {
 		comment, err := GetCommentRowToComment(row)
 		if err != nil {
@@ -254,7 +254,7 @@ func GetCommentRowsToComments(rows []sqlc.GetCommentsByListingIDRow) ([]Comment,
 //
 // Output:
 //   - *sqlc.PostCommentParams: a pointer to a sqlc.PostCommentParams struct containing postable comment data.
-func (comment *Comment) ToPostCommentParams() *sqlc.PostCommentParams {
+func (comment *APIComment) ToPostCommentParams() *sqlc.PostCommentParams {
 	// Convert go types to postgres types.
 
 	// Create a GetCommentsByListingIDRow struct from the Comment struct.
@@ -278,7 +278,7 @@ func (comment *Comment) ToPostCommentParams() *sqlc.PostCommentParams {
 // Output:
 //   - sqlc.GetCommentsByListingIDRow: a sqlc.GetCommentsByListingIDRow struct containing the comment data.
 //   - error: an error if the conversion fails, otherwise nil.
-func CommentToGetCommentRow(comment Comment) *sqlc.GetCommentsByListingIDRow {
+func CommentToGetCommentRow(comment APIComment) *sqlc.GetCommentsByListingIDRow {
 	// Convert go types to postgres types.
 
 	// Convert the timestamp to pgtype.Numeric.
@@ -302,7 +302,7 @@ func CommentToGetCommentRow(comment Comment) *sqlc.GetCommentsByListingIDRow {
 }
 
 // CommentsToGetCommentRows converts a slice of Comment structs to a slice of sqlc.GetCommentsByListingIDRow structs.
-func CommentsToGetCommentRows(comments []Comment) []sqlc.GetCommentsByListingIDRow {
+func CommentsToGetCommentRows(comments []APIComment) []sqlc.GetCommentsByListingIDRow {
 	var commentRows []sqlc.GetCommentsByListingIDRow
 	for _, comment := range comments {
 		commentRow := CommentToGetCommentRow(comment)
@@ -313,7 +313,7 @@ func CommentsToGetCommentRows(comments []Comment) []sqlc.GetCommentsByListingIDR
 
 // ToResponse converts a Comment to a ResponseComment.
 // This is used to format the comment data for API responses, excluding sensitive information like UserIP and UserID.
-func (c Comment) ToResponse() ResponseComment {
+func (c APIComment) ToResponse() ResponseComment {
 	return ResponseComment{
 		TargetListing: c.ListingID,
 		CommentID:     c.CommentID,
@@ -324,7 +324,7 @@ func (c Comment) ToResponse() ResponseComment {
 }
 
 // ToResponseSlice converts a slice of Comment to a slice of ResponseComment.
-func ToResponseSlice(comments []Comment) []ResponseComment {
+func ToResponseSlice(comments []APIComment) []ResponseComment {
 	var response []ResponseComment
 	for _, comment := range comments {
 		response = append(response, comment.ToResponse())

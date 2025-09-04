@@ -72,7 +72,7 @@ func ValidationSetupAndTeardown(tb testing.TB) (func(tb testing.TB), *validator.
 
 func TestSanitize_ListingID(t *testing.T) {
 	_, sanitizer := SanitizationSetupAndTeardown(t)
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.ListingID = "<b>123456</b>"
 	sanitized := params.Sanitize(*sanitizer)
 	if sanitized.ListingID != "123456" {
@@ -82,7 +82,7 @@ func TestSanitize_ListingID(t *testing.T) {
 
 func TestSanitize_UserIp(t *testing.T) {
 	_, sanitizer := SanitizationSetupAndTeardown(t)
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.UserIp = "<script>alert('x')</script>192.168.1.1"
 	sanitized := params.Sanitize(*sanitizer)
 	if sanitized.UserIp != "192.168.1.1" {
@@ -92,7 +92,7 @@ func TestSanitize_UserIp(t *testing.T) {
 
 func TestSanitize_UserID(t *testing.T) {
 	_, sanitizer := SanitizationSetupAndTeardown(t)
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.UserID = "<i>" + params.UserID + "</i>"
 	sanitized := params.Sanitize(*sanitizer)
 	if sanitized.UserID != params.UserID[3:len(params.UserID)-4] {
@@ -102,7 +102,7 @@ func TestSanitize_UserID(t *testing.T) {
 
 func TestSanitize_Username(t *testing.T) {
 	_, sanitizer := SanitizationSetupAndTeardown(t)
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.Username = "<b>TestUser</b>"
 	sanitized := params.Sanitize(*sanitizer)
 	if sanitized.Username != "TestUser" {
@@ -112,7 +112,7 @@ func TestSanitize_Username(t *testing.T) {
 
 func TestSanitize_CommentText(t *testing.T) {
 	_, sanitizer := SanitizationSetupAndTeardown(t)
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.CommentText = "<script>alert('xss')</script>This is a comment."
 	sanitized := params.Sanitize(*sanitizer)
 	if sanitized.CommentText != "This is a comment." {
@@ -122,7 +122,7 @@ func TestSanitize_CommentText(t *testing.T) {
 
 func TestSanitize_ListingID_XSS(t *testing.T) {
 	_, sanitizer := SanitizationSetupAndTeardown(t)
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.ListingID = `<img src="x" onerror="alert('XSS')">123456<script>alert(1)</script>`
 	sanitized := params.Sanitize(*sanitizer)
 	if sanitized.ListingID != "123456" {
@@ -132,7 +132,7 @@ func TestSanitize_ListingID_XSS(t *testing.T) {
 
 func TestSanitize_UserIp_XSS(t *testing.T) {
 	_, sanitizer := SanitizationSetupAndTeardown(t)
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.UserIp = `192.168.1.1"><svg/onload=alert(2)>`
 	sanitized := params.Sanitize(*sanitizer)
 	if sanitized.UserIp != `192.168.1.1&#34;&gt;` {
@@ -142,7 +142,7 @@ func TestSanitize_UserIp_XSS(t *testing.T) {
 
 func TestSanitize_UserID_XSS(t *testing.T) {
 	_, sanitizer := SanitizationSetupAndTeardown(t)
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	expectedUserID := params.UserID // Store the original UserID
 	params.UserID = `<iframe src="javascript:alert('XSS')"></iframe>` + params.UserID + `<script>alert(3)</script>`
 	sanitized := params.Sanitize(*sanitizer)
@@ -153,7 +153,7 @@ func TestSanitize_UserID_XSS(t *testing.T) {
 
 func TestSanitize_Username_XSS(t *testing.T) {
 	_, sanitizer := SanitizationSetupAndTeardown(t)
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.Username = `"><img src=x onerror=alert(4)>TestUser<script>alert(5)</script>`
 	sanitized := params.Sanitize(*sanitizer)
 	// Should return the username with the characters encoded as HTML character entities
@@ -164,7 +164,7 @@ func TestSanitize_Username_XSS(t *testing.T) {
 
 func TestSanitize_CommentText_XSS(t *testing.T) {
 	_, sanitizer := SanitizationSetupAndTeardown(t)
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.CommentText = `<script>alert('xss')</script>This is a comment.<img src="x" onerror="alert('XSS')">`
 	sanitized := params.Sanitize(*sanitizer)
 	if sanitized.CommentText != "This is a comment." {
@@ -288,75 +288,6 @@ func TestRemovePhoneNumbers(t *testing.T) {
 //                                             Validation Test Helpers                                                   //
 // ===================================================================================================================== //
 
-// Helper to create a valid PostCommentParams
-type ValidPostCommentParamsType int
-
-const (
-	ValidParamsIPv4 ValidPostCommentParamsType = iota
-	ValidParamsIPv6
-	ValidParamsAltIPv4
-)
-
-func validPostCommentParams(paramType ValidPostCommentParamsType) PostCommentParams {
-	// Create a valid CommentID
-	commentID, err := validPgtypeUUID()
-	if err != nil {
-		log.Fatal("Failed to create valid CommentID", err)
-	}
-
-	// Create a valid userID
-	userID, err := uuid.NewV7()
-	if err != nil {
-		log.Fatal("Failed to create valid UUID for UserID", err)
-	}
-
-	switch paramType {
-	case ValidParamsIPv6:
-		return PostCommentParams{
-			CommentID:    *commentID,
-			ListingID:    "654321",
-			UserIp:       "3e220f2bf981113f9b5f597168a8e13514b75a9fe9268b68e662fda5386bfb4a9490e8341315c399316cace7f41b61f7a5404fe7c04969",
-			UserID:       userID.String(),
-			Username:     "TestUserIPv6",
-			CommentText:  "This is a valid IPv6 comment.",
-			ListingTitle: pgtype.Text{String: "Regular title", Valid: true},
-			IpNonce:      pgtype.Text{String: "0d00ad4b080209200aa852f2", Valid: true},
-		}
-	case ValidParamsAltIPv4:
-		return PostCommentParams{
-			CommentID:    *commentID,
-			ListingID:    "789012",
-			UserIp:       "9d8787f71c30a79d519688a4054b4b8a363af95e8f4b7e5b",
-			UserID:       userID.String(),
-			Username:     "TestUserAltIPv4",
-			CommentText:  "This is another valid IPv4 comment.",
-			ListingTitle: pgtype.Text{String: "Regular title", Valid: true},
-			IpNonce:      pgtype.Text{String: "bdc990f0a33e852bd0e412dc", Valid: true},
-		}
-	default: // ValidParamsIPv4
-		return PostCommentParams{
-			CommentID:    *commentID,
-			ListingID:    "123456",
-			UserIp:       "bd98b9c5db0655b23e47a57ba65c2b7446bf1c08b39ac3173e89ab",
-			UserID:       userID.String(),
-			Username:     "TestUser",
-			CommentText:  "This is a valid comment.",
-			ListingTitle: pgtype.Text{String: "Regular title", Valid: true},
-			IpNonce:      pgtype.Text{String: "1ee7385a435e4cc5e534b051", Valid: true},
-		}
-	}
-}
-
-// Helper to create a valid pgtype.UUID (replace with your actual type if needed)
-func validPgtypeUUID() (*pgtype.UUID, error) {
-	newUUID, err := uuid.NewV7()
-	if err != nil {
-		return nil, errors.Join(errors.New("failed to generate UUID"), err)
-	}
-
-	return &pgtype.UUID{Bytes: [16]byte(newUUID), Valid: true}, nil
-}
-
 // ===================================================================================================================== //
 //                                             Validation Tests                                                          //
 // ===================================================================================================================== //
@@ -365,7 +296,7 @@ func TestPostCommentParamsValidation_Valid(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	err := validate.Struct(params)
 	if err != nil {
 		t.Errorf("Expected valid params, got error: %v", err)
@@ -378,7 +309,7 @@ func TestPostCommentParamsValidation_CommentID_Required(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.CommentID = pgtype.UUID{} // Zero value, not valid
 
 	err := validate.Struct(params)
@@ -391,7 +322,7 @@ func TestPostCommentParamsValidation_CommentID_AlmostValidUUID(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	// Set valid UUID bytes to be edited
 	tempId := params.CommentID.String()
 	// Change the version code (at index 14) from '7' to a different digit, changing the
@@ -416,7 +347,7 @@ func TestPostCommentParamsValidation_CommentID_InvalidUUID(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	// Set invalid UUID bytes (not a valid UUID)
 	params.CommentID = pgtype.UUID{Bytes: [16]byte{0, 0, 3}, Valid: true}
 
@@ -457,7 +388,7 @@ func TestPostCommentParamsValidation_ListingID_Required(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.ListingID = ""
 
 	err := validate.Struct(params)
@@ -470,7 +401,7 @@ func TestPostCommentParamsValidation_ListingID_Number(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.ListingID = "abc123" // Not a number
 
 	err := validate.Struct(params)
@@ -483,7 +414,7 @@ func TestPostCommentParamsValidation_ListingID_ExcludesDot(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.ListingID = "123.456" // Contains a dot
 
 	err := validate.Struct(params)
@@ -496,7 +427,7 @@ func TestPostCommentParamsValidation_ListingID_MinLength(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.ListingID = "" // min=1
 
 	err := validate.Struct(params)
@@ -509,7 +440,7 @@ func TestPostCommentParamsValidation_ListingID_MaxLength(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.ListingID = "123456789012345678901" // 21 chars, max=20
 
 	err := validate.Struct(params)
@@ -524,7 +455,7 @@ func TestPostCommentParamsValidation_UserIp_Required(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.UserIp = ""
 
 	err := validate.Struct(params)
@@ -537,7 +468,7 @@ func TestPostCommentParamsValidation_UserIp_InvalidIP(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.UserIp = "not_an_encrypted_ip"
 
 	err := validate.Struct(params)
@@ -550,7 +481,7 @@ func TestPostCommentParamsValidation_UserIp_NotHexadecimal(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	// Insert a non-hex character
 	params.UserIp = makeStringOfLength(40) + "Z"
 
@@ -564,7 +495,7 @@ func TestPostCommentParamsValidation_UserIp_MinLength(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	// 39 chars, min=40
 	params.UserIp = makeStringOfLength(39)
 
@@ -578,7 +509,7 @@ func TestPostCommentParamsValidation_UserIp_MaxLength(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	// 131 chars, max=130
 	params.UserIp = makeStringOfLength(131)
 
@@ -592,7 +523,7 @@ func TestPostCommentParamsValidation_UserIp_ValidHexMinLength(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	// 40 chars, all hex
 	params.UserIp = ""
 	for i := 0; i < 40; i++ {
@@ -609,7 +540,7 @@ func TestPostCommentParamsValidation_UserIp_ValidHexMaxLength(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	// 130 chars, all hex
 	params.UserIp = ""
 	for i := 0; i < 130; i++ {
@@ -627,7 +558,7 @@ func TestPostCommentParamsValidation_Valid_AltIPv4(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsAltIPv4)
+	params := GetValidPostCommentParams(ValidParamsAltIPv4)
 	err := validate.Struct(params)
 	if err != nil {
 		t.Errorf("Expected valid params for AltIPv4, got error: %v", err)
@@ -639,7 +570,7 @@ func TestPostCommentParamsValidation_Valid_IPv6(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv6)
+	params := GetValidPostCommentParams(ValidParamsIPv6)
 	err := validate.Struct(params)
 	if err != nil {
 		t.Errorf("Expected valid params for IPv6, got error: %v", err)
@@ -652,7 +583,7 @@ func TestPostCommentParamsValidation_UserID_Required(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.UserID = ""
 
 	err := validate.Struct(params)
@@ -665,7 +596,7 @@ func TestPostCommentParamsValidation_UserID_InvalidUUID(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.UserID = "not-a-uuid"
 
 	err := validate.Struct(params)
@@ -678,7 +609,7 @@ func TestPostCommentParamsValidation_UserID_Version3UUID(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	nonV7UUID := uuid.NewMD5(uuid.NameSpaceDNS, []byte("example.com")) // Version 3
 	params.UserID = nonV7UUID.String()
 
@@ -692,7 +623,7 @@ func TestPostCommentParamsValidation_UserID_Version4UUID(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	nonV7UUID, err := uuid.NewRandom() // Version 4
 	if err != nil {
 		t.Fatal("Failed to generate random UUID for UserID:", err)
@@ -709,7 +640,7 @@ func TestPostCommentParamsValidation_UserID_Version5UUID(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	nonV7UUID := uuid.NewSHA1(uuid.NameSpaceDNS, []byte("example.com")) // Version 5
 	params.UserID = nonV7UUID.String()
 
@@ -723,7 +654,7 @@ func TestPostCommentParamsValidation_UserID_Version6UUID(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	nonV7UUID, err := uuid.NewV6() // Version 6
 	if err != nil {
 		t.Fatal("Failed to generate random UUID for UserID:", err)
@@ -855,7 +786,7 @@ func TestPostCommentParamsValidation_UserID_UUIDTooFarInPast(t *testing.T) {
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for UserID (far past):", err)
 	}
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.UserID = uuidPast.String()
 
 	err = validate.Struct(params)
@@ -874,7 +805,7 @@ func TestPostCommentParamsValidation_UserID_UUIDSlightlyTooFarPast(t *testing.T)
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for UserID (slightly past):", err)
 	}
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.UserID = uuidPast.String()
 
 	err = validate.Struct(params)
@@ -894,7 +825,7 @@ func TestPostCommentParamsValidation_UserID_UUIDJustAfterValidationStart(t *test
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for UserID (far past):", err)
 	}
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.UserID = uuidPast.String()
 
 	err = validate.Struct(params)
@@ -914,7 +845,7 @@ func TestPostCommentParamsValidation_UserID_UUIDTooFarInFuture(t *testing.T) {
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for UserID (far future):", err)
 	}
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.UserID = uuidFuture.String()
 
 	err = validate.Struct(params)
@@ -933,7 +864,7 @@ func TestPostCommentParamsValidation_UserID_UUIDSlightlyInFuture(t *testing.T) {
 	if err != nil {
 		t.Fatal("Failed to generate V7 UUID for slightly in future:", err)
 	}
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.UserID = uuidFuture.String()
 
 	err = validate.Struct(params)
@@ -948,7 +879,7 @@ func TestPostCommentParamsValidation_Username_Required(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.Username = ""
 
 	err := validate.Struct(params)
@@ -962,7 +893,7 @@ func TestPostCommentParamsValidation_Username_Alphanum(t *testing.T) {
 	defer teardown(t)
 
 	// Test non-alphanumeric string
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.Username = "user!@#" // Not alphanum
 
 	err := validate.Struct(params)
@@ -997,7 +928,7 @@ func TestPostCommentParamsValidation_Username_OtherChars(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.Username = " .,_-"
 
 	err := validate.Struct(params)
@@ -1012,7 +943,7 @@ func TestPostCommentParamsValidation_Username_Characters(t *testing.T) {
 
 	allowedChars := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,_-")
 	for i := 0; i < 50; i++ {
-		params := validPostCommentParams(ValidParamsIPv4)
+		params := GetValidPostCommentParams(ValidParamsIPv4)
 		randomUsername := make([]rune, 25)
 		for j := 0; j < 25; j++ {
 			idx := rand.Intn(len(allowedChars))
@@ -1048,7 +979,7 @@ func TestPostCommentParamsValidation_Username_InvalidCharacters(t *testing.T) {
 	}
 
 	for i := 0; i < 50; i++ {
-		params := validPostCommentParams(ValidParamsIPv4)
+		params := GetValidPostCommentParams(ValidParamsIPv4)
 		randomUsername := make([]rune, 25)
 		for j := 0; j < 25; j++ {
 			idx := rand.Intn(len(allowedCharsSlice))
@@ -1083,7 +1014,7 @@ func TestPostCommentParamsValidation_Username_EachInvalidCharacter(t *testing.T)
 		if _, ok := allowedChars[candidate]; ok {
 			continue // skip allowed chars
 		}
-		params := validPostCommentParams(ValidParamsIPv4)
+		params := GetValidPostCommentParams(ValidParamsIPv4)
 		randomUsername := make([]rune, 25)
 		for j := 0; j < 25; j++ {
 			idx := rand.Intn(len(allowedCharsSlice))
@@ -1105,7 +1036,7 @@ func TestPostCommentParamsValidation_Username_MinLength(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.Username = "ab" // min=3
 
 	err := validate.Struct(params)
@@ -1118,7 +1049,7 @@ func TestPostCommentParamsValidation_Username_MaxLength(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.Username = "abcdefghijklmnopqrstuvwxyz" // 26 chars, max=25
 
 	err := validate.Struct(params)
@@ -1133,7 +1064,7 @@ func TestPostCommentParamsValidation_CommentText_Required(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.CommentText = ""
 
 	err := validate.Struct(params)
@@ -1146,7 +1077,7 @@ func TestPostCommentParamsValidation_CommentText_NonPrintableASCII(t *testing.T)
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	// Insert a non-printable ASCII character (e.g., ASCII 7 - bell)
 	params.CommentText = "This is a valid comment.\a"
 
@@ -1166,7 +1097,7 @@ func TestPostCommentParamsValidation_CommentText_AllNonPrintableASCII(t *testing
 		if i == 10 {
 			continue
 		}
-		params := validPostCommentParams(ValidParamsIPv4)
+		params := GetValidPostCommentParams(ValidParamsIPv4)
 		params.CommentText = "Valid text" + string(rune(i))
 		err := validate.Struct(params)
 		if err == nil {
@@ -1174,7 +1105,7 @@ func TestPostCommentParamsValidation_CommentText_AllNonPrintableASCII(t *testing
 		}
 	}
 	// DEL character (ASCII 127)
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.CommentText = "Valid text" + string(rune(127))
 	err := validate.Struct(params)
 	if err == nil {
@@ -1187,7 +1118,7 @@ func TestPostCommentParamsValidation_CommentText_OnlyPrintableASCII(t *testing.T
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	// All printable ASCII characters from 32 (space) to 126 (~)
 	printable := ""
 	for i := 32; i <= 126; i++ {
@@ -1205,7 +1136,7 @@ func TestPostCommentParamsValidation_CommentText_MinLength(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.CommentText = "" // min=1
 
 	err := validate.Struct(params)
@@ -1218,7 +1149,7 @@ func TestPostCommentParamsValidation_CommentText_MaxLength(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.CommentText = makeStringOfLength(301) // max=300
 
 	err := validate.Struct(params)
@@ -1233,7 +1164,7 @@ func TestPostCommentParamsValidation_ListingTitle_InvalidPGType(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.ListingTitle.String = "Regular title"
 	params.ListingTitle.Valid = false
 
@@ -1247,7 +1178,7 @@ func TestPostCommentParamsValidation_ListingTitle_Required(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.ListingTitle.String = ""
 	params.ListingTitle.Valid = true
 
@@ -1261,7 +1192,7 @@ func TestPostCommentParamsValidation_ListingTitle_MinLength(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.ListingTitle.String = ""
 	params.ListingTitle.Valid = true
 
@@ -1275,7 +1206,7 @@ func TestPostCommentParamsValidation_ListingTitle_MaxLength(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.ListingTitle.String = makeStringOfLength(201) // max=200
 	params.ListingTitle.Valid = true
 
@@ -1289,7 +1220,7 @@ func TestPostCommentParamsValidation_ListingTitle_AllowedCharacters(t *testing.T
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.ListingTitle.String = "123 Main St., Apt #5 - New York"
 	params.ListingTitle.Valid = true
 
@@ -1299,7 +1230,7 @@ func TestPostCommentParamsValidation_ListingTitle_AllowedCharacters(t *testing.T
 	}
 
 	for val := 32; val < 127; val++ {
-		params := validPostCommentParams(ValidParamsIPv4)
+		params := GetValidPostCommentParams(ValidParamsIPv4)
 		params.ListingTitle.String = string(rune(val))
 		params.ListingTitle.Valid = true
 
@@ -1315,7 +1246,7 @@ func TestPostCommentParamsValidation_ListingTitle_DisallowedCharacters(t *testin
 	defer teardown(t)
 
 	for val := 0; val < 32; val++ {
-		params := validPostCommentParams(ValidParamsIPv4)
+		params := GetValidPostCommentParams(ValidParamsIPv4)
 		params.ListingTitle.String = string(rune(val))
 		params.ListingTitle.Valid = true
 
@@ -1325,7 +1256,7 @@ func TestPostCommentParamsValidation_ListingTitle_DisallowedCharacters(t *testin
 		}
 	}
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.ListingTitle.String = string(rune(127))
 	params.ListingTitle.Valid = true
 
@@ -1341,7 +1272,7 @@ func TestPostCommentParamsValidation_IpNonce_InvalidPGType(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.IpNonce.String = makeStringOfLength(24)
 	params.IpNonce.Valid = false
 
@@ -1355,7 +1286,7 @@ func TestPostCommentParamsValidation_IpNonce_Required(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	params.IpNonce.String = ""
 	params.IpNonce.Valid = true
 
@@ -1369,7 +1300,7 @@ func TestPostCommentParamsValidation_IpNonce_NotHexadecimal(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	// Insert a non-hex character
 	params.IpNonce.String = makeStringOfLength(23) + "Z"
 	params.IpNonce.Valid = true
@@ -1384,7 +1315,7 @@ func TestPostCommentParamsValidation_IpNonce_WrongLength_Short(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	// 23 chars, should be 24
 	params.IpNonce.String = makeStringOfLength(23)
 	params.IpNonce.Valid = true
@@ -1399,7 +1330,7 @@ func TestPostCommentParamsValidation_IpNonce_WrongLength_Long(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	// 25 chars, should be 24
 	params.IpNonce.String = makeStringOfLength(25)
 	params.IpNonce.Valid = true
@@ -1414,7 +1345,7 @@ func TestPostCommentParamsValidation_IpNonce_ValidHexLength24(t *testing.T) {
 	teardown, validate := ValidationSetupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := GetValidPostCommentParams(ValidParamsIPv4)
 	// 24 chars, all hex
 	params.IpNonce.String = ""
 	for i := 0; i < 24; i++ {

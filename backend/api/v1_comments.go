@@ -255,7 +255,7 @@ func (server *Server) GenerateUserID(c *gin.Context) {
 // Output:
 //   - A slice of Comment structs containing the comments for the specified listing.
 //   - An error if the listing doesn't exist in the DB.
-func (server Server) GetComments(listingID string) ([]models.Comment, error) {
+func (server Server) GetComments(listingID string) ([]models.APIComment, error) {
 	// Acquire a Postgres connection from the pool
 	postgresConnection, err := server.GetPostgresPool().Acquire(context.TODO())
 	if err != nil {

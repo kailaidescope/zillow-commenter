@@ -17,7 +17,6 @@ import (
 
 	resty "github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/joho/godotenv"
 
 	"zillow-commenter.com/m/api"
@@ -375,72 +374,6 @@ func TestRemovePhoneNumbers(t *testing.T) {
 //                                             Validation Test Helpers                                                   //
 // ===================================================================================================================== //
 
-// Helper to create a valid PostCommentParams
-type validPostCommentParamsType int
-
-const (
-	ValidParamsIPv4 validPostCommentParamsType = iota
-	ValidParamsIPv6
-	ValidParamsAltIPv4
-)
-
-func validPostCommentParams(paramType validPostCommentParamsType) sqlc.PostCommentParams {
-	// Create a valid CommentID
-	commentID, err := validPgtypeUUID()
-	if err != nil {
-		log.Fatal("Failed to create valid CommentID", err)
-	}
-
-	// Create a valid userID
-	userID, err := uuid.NewV7()
-	if err != nil {
-		log.Fatal("Failed to create valid UUID for UserID", err)
-	}
-
-	switch paramType {
-	case ValidParamsIPv6:
-		return sqlc.PostCommentParams{
-			CommentID:    *commentID,
-			ListingID:    getTestListingId(),
-			UserIp:       "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
-			UserID:       userID.String(),
-			Username:     "TestUserIPv6",
-			CommentText:  "This is a valid IPv6 comment.",
-			ListingTitle: pgtype.Text{String: "Regular title", Valid: true},
-		}
-	case ValidParamsAltIPv4:
-		return sqlc.PostCommentParams{
-			CommentID:    *commentID,
-			ListingID:    getTestListingId(),
-			UserIp:       "10.0.0.1",
-			UserID:       userID.String(),
-			Username:     "TestUserAltIPv4",
-			CommentText:  "This is another valid IPv4 comment.",
-			ListingTitle: pgtype.Text{String: "Regular title", Valid: true},
-		}
-	default: // ValidParamsIPv4
-		return sqlc.PostCommentParams{
-			CommentID:    *commentID,
-			ListingID:    getTestListingId(),
-			UserIp:       "192.168.1.1",
-			UserID:       userID.String(),
-			Username:     "TestUser",
-			CommentText:  "This is a valid comment.",
-			ListingTitle: pgtype.Text{String: "Regular title", Valid: true},
-		}
-	}
-}
-
-// Helper to create a valid pgtype.UUID (replace with your actual type if needed)
-func validPgtypeUUID() (*pgtype.UUID, error) {
-	newUUID, err := uuid.NewV7()
-	if err != nil {
-		return nil, errors.Join(errors.New("failed to generate UUID"), err)
-	}
-
-	return &pgtype.UUID{Bytes: [16]byte(newUUID), Valid: true}, nil
-}
-
 // ===================================================================================================================== //
 //                                                Validation Tests                                                       //
 // ===================================================================================================================== //
@@ -565,7 +498,7 @@ func TestPostCommentParamsValidation_ListingTitle_Required(t *testing.T) {
 	teardown, _ := setupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
 	params.ListingTitle.String = ""
 	params.ListingTitle.Valid = true
 
@@ -594,7 +527,7 @@ func TestPostCommentParamsValidation_ListingTitle_MinLength(t *testing.T) {
 	teardown, _ := setupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
 	params.ListingTitle.String = ""
 	params.ListingTitle.Valid = true
 
@@ -623,7 +556,7 @@ func TestPostCommentParamsValidation_ListingTitle_MaxLength(t *testing.T) {
 	teardown, _ := setupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
 	params.ListingTitle.String = makeStringOfLength(201) // max=200
 	params.ListingTitle.Valid = true
 
@@ -652,7 +585,7 @@ func TestPostCommentParamsValidation_ListingTitle_AllowedCharacters(t *testing.T
 	teardown, _ := setupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
 	params.ListingTitle.String = "123 Main St., Apt #5 - New York"
 	params.ListingTitle.Valid = true
 
@@ -677,7 +610,7 @@ func TestPostCommentParamsValidation_ListingTitle_AllowedCharacters(t *testing.T
 	}
 
 	for val := 32; val < 127; val++ {
-		params := validPostCommentParams(ValidParamsIPv4)
+		params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
 		params.ListingTitle.String = string(rune(val))
 		params.ListingTitle.Valid = true
 
@@ -702,7 +635,7 @@ func TestPostCommentParamsValidation_ListingTitle_DisallowedCharacters(t *testin
 	teardown, _ := setupAndTeardown(t)
 	defer teardown(t)
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
 	values := url.Values{}
 	values.Set("listing_id", getTestListingId())
 	values.Set("user_id", params.UserID)
@@ -711,7 +644,7 @@ func TestPostCommentParamsValidation_ListingTitle_DisallowedCharacters(t *testin
 	values.Set("listing_title", params.ListingTitle.String)
 
 	for val := 0; val < 32; val++ {
-		params := validPostCommentParams(ValidParamsIPv4)
+		params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
 		params.ListingTitle.String = string(rune(val))
 		params.ListingTitle.Valid = true
 
@@ -760,7 +693,7 @@ func TestIPEncryption_RoundTrip(t *testing.T) {
 
 	// POST comment to listing_id=0
 
-	params := validPostCommentParams(ValidParamsIPv4)
+	params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
 
 	values := url.Values{}
 	values.Set("listing_id", params.ListingID)
