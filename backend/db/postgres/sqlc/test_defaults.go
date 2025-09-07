@@ -36,6 +36,10 @@ const (
 	ValidParamsAltIPv4
 )
 
+func GetTestListingId() string {
+	return "0"
+}
+
 func GetValidPostCommentParams(paramType ValidPostCommentParamsType) PostCommentParams {
 	// Create a valid CommentID
 	commentID, err := GetValidPGTypeUUID()
@@ -53,7 +57,7 @@ func GetValidPostCommentParams(paramType ValidPostCommentParamsType) PostComment
 	case ValidParamsIPv6:
 		return PostCommentParams{
 			CommentID:    *commentID,
-			ListingID:    "654321",
+			ListingID:    GetTestListingId(),
 			UserIp:       "3e220f2bf981113f9b5f597168a8e13514b75a9fe9268b68e662fda5386bfb4a9490e8341315c399316cace7f41b61f7a5404fe7c04969",
 			UserID:       userID.String(),
 			Username:     "TestUserIPv6",
@@ -64,7 +68,7 @@ func GetValidPostCommentParams(paramType ValidPostCommentParamsType) PostComment
 	case ValidParamsAltIPv4:
 		return PostCommentParams{
 			CommentID:    *commentID,
-			ListingID:    "789012",
+			ListingID:    GetTestListingId(),
 			UserIp:       "9d8787f71c30a79d519688a4054b4b8a363af95e8f4b7e5b",
 			UserID:       userID.String(),
 			Username:     "TestUserAltIPv4",
@@ -75,7 +79,7 @@ func GetValidPostCommentParams(paramType ValidPostCommentParamsType) PostComment
 	default: // ValidParamsIPv4
 		return PostCommentParams{
 			CommentID:    *commentID,
-			ListingID:    "123456",
+			ListingID:    GetTestListingId(),
 			UserIp:       "bd98b9c5db0655b23e47a57ba65c2b7446bf1c08b39ac3173e89ab",
 			UserID:       userID.String(),
 			Username:     "TestUser",
@@ -124,7 +128,7 @@ func GetDefaultFakeRow() FakePGRowStruct {
 	userID, _ := uuid.NewV7()
 	return FakePGRowStruct{
 		CommentID:    *commentID,
-		ListingID:    "1234567",
+		ListingID:    GetTestListingId(),
 		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "tester",
@@ -141,7 +145,7 @@ func GetDefaultPostCommentRow() PostCommentRow {
 	userID, _ := uuid.NewV7()
 	return PostCommentRow{
 		CommentID:    *commentID,
-		ListingID:    "1234567",
+		ListingID:    GetTestListingId(),
 		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "tester",
@@ -158,7 +162,7 @@ func GetDefaultGetCommentRow() GetCommentsByListingIDRow {
 	userID, _ := uuid.NewV7()
 	return GetCommentsByListingIDRow{
 		CommentID:    *commentID,
-		ListingID:    "1234567",
+		ListingID:    GetTestListingId(),
 		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "tester",

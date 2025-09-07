@@ -47,7 +47,7 @@ func formatResponse(resp *resty.Response) string {
 }
 
 func getTestListingId() string {
-	return "0"
+	return sqlc.GetTestListingId()
 }
 
 func getTestListingTitle() string {
