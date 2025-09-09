@@ -31,3 +31,6 @@ go.work
 
 # All pem (certificate) files
 **.pem
+
+# The AWS stack template
+**aws-stack-template.yaml
