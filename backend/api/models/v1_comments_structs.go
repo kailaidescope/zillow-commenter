@@ -6,7 +6,6 @@ package models
 
 import (
 	"errors"
-	"log"
 	"math/big"
 	"reflect"
 	"strconv"
@@ -350,9 +349,9 @@ func convertPGTextToString(pgtext pgtype.Text) *string {
 	var convertedString *string = nil
 	if pgtext.Valid {
 		convertedString = aws.String(pgtext.String)
-	} else {
+	} /* else {
 		log.Println("PGText was converted to nil from postgres type, since valid=false.")
-	}
+	} */
 
 	return convertedString
 }
