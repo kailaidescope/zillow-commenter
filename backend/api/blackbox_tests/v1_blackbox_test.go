@@ -32,6 +32,9 @@ func SetupAndTeardown(tb testing.TB) (func(tb testing.TB), string) {
 	os.Chdir("../..")
 	godotenv.Load()
 	apiIP := os.Getenv("API_IP")
+	if apiIP == "" {
+		tb.Fatal("API IP could not be loaded for blackbox test")
+	}
 
 	// Give the server a moment to start
 	time.Sleep(500 * time.Millisecond)
