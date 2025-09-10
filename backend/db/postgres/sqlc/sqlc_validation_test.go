@@ -32,6 +32,8 @@ func ValidationSetupAndTeardown(tb testing.TB) (func(tb testing.TB), *validator.
 	// Create a validator singleton
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
+	time.Sleep(time.Duration(1+rand.Intn(3)) * time.Second)
+
 	// Register custom validations for structs and fields
 	RegisterValidators(validate)
 
@@ -208,6 +210,38 @@ func TestPostCommentParamsValidation_ListingID_MaxLength(t *testing.T) {
 	err := validate.Struct(params)
 	if err == nil {
 		t.Error("Expected error for ListingID with length > 20, got nil")
+	}
+}
+
+// Checks that the struct validation works for active IDs
+func TestPostCommentParamsValidation_ListingID_Existant(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := GetValidPostCommentParams(ValidParamsIPv4)
+	for _, listingID := range GetActiveListingIDs() {
+		params.ListingID = listingID
+
+		err := validate.Struct(params)
+		if err != nil {
+			t.Error("Expected no error for valid, active ListingID (", listingID, "), got:", err)
+		}
+	}
+}
+
+// Checks that the struct validation works for inactive IDs
+func TestPostCommentParamsValidation_ListingID_NonExistant(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := GetValidPostCommentParams(ValidParamsIPv4)
+	for _, listingID := range GetInactiveListingIDs() {
+		params.ListingID = listingID
+
+		err := validate.Struct(params)
+		if err == nil {
+			t.Error("Expected error for valid, inactive ListingID (", listingID, "), got nil")
+		}
 	}
 }
 

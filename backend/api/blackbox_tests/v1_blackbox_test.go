@@ -50,7 +50,7 @@ func formatResponse(resp *resty.Response) string {
 }
 
 func getTestListingId() string {
-	return sqlc.GetTestListingId()
+	return sqlc.GetActiveTestListingID()
 }
 
 func getTestListingTitle() string {

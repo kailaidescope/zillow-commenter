@@ -59,9 +59,12 @@ import (
 	"errors"
 	"log"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"github.com/microcosm-cc/bluemonday"
@@ -212,6 +215,13 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 	err = sl.Validator().Var(postCommentParams.ListingID, listingIdValidation)
 	if err != nil {
 		sl.ReportError(postCommentParams, "ListingID", "ListingID", listingIdValidation, "")
+	}
+	listingIdExists, err := multiCheckZillowListingID(postCommentParams.ListingID, 5)
+	if err != nil {
+		sl.ReportError(postCommentParams, "ListingID", "ListingID", "exists-failed-validation: "+err.Error(), "")
+	}
+	if !listingIdExists {
+		sl.ReportError(postCommentParams, "ListingID", "ListingID", "exists", "")
 	}
 
 	// USER IP
@@ -413,6 +423,65 @@ func getUUIDTimestamp(uuid uuid.UUID) time.Time {
 // ================================================================================================================== //
 //                                                    Helpers                                                         //
 // ================================================================================================================== //
+
+// multiCheckZillowListingID validates a given listing ID exists, and tries multiple times in case of API request failure
+//
+// Input:
+//   - listingId: the listingId to be validated
+//   - maxTries: the maximum number of attempts at validation. Cannot be >10
+//
+// Output:
+//   - bool: true if listingId exists, false otherwise
+//   - err: non-nil if the validation process failed on every attempt
+func multiCheckZillowListingID(listingId string, maxTries int) (bool, error) {
+	if maxTries > 10 {
+		return false, errors.New("maxTries cannot be larger than 10 for multiCheckZillowListingID")
+	}
+
+	var lastError error
+	for i := 0; i < maxTries; i++ {
+		listingExists, err := checkZillowListingID(listingId)
+		if err == nil {
+			return listingExists, err
+		}
+		lastError = err
+	}
+	return false, lastError
+}
+
+// checkZillowListingID validates that a given listing ID has an active zillow page
+//
+// Input:
+//   - listingId: the listingId to be validated
+//
+// Output:
+//   - bool: true if listingId exists, false otherwise
+//   - err: non-nil if the validation process failed
+func checkZillowListingID(listingId string) (bool, error) {
+	listingIdInt, err := strconv.Atoi(listingId)
+	if err != nil {
+		return false, errors.Join(errors.New("listingId could not be converted to int, thus is invalid"), err)
+	}
+	if listingIdInt <= 0 {
+		return false, nil
+	}
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/x-www-form-urlencoded").
+		Get("https://www.zillow.com/homedetails/" + strconv.Itoa(listingIdInt) + "_zpid/")
+
+	if err != nil {
+		return false, errors.Join(errors.New("request to check listingId failed"), err)
+	}
+	if resp.StatusCode() != 200 && resp.StatusCode() != 404 {
+		return false, errors.New("expected 200 or 404 response code for listingId check, but got " + strconv.Itoa(resp.StatusCode()))
+	}
+	if strings.Contains(resp.String(), "something broke.") || resp.StatusCode() == 404 {
+		return false, nil
+	}
+	return true, nil
+}
 
 // removeLinks is a helper function that removes URLs and links from a given string.
 // It uses a regular expression to match and remove most common URL formats (http, https,

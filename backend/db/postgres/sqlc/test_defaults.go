@@ -36,10 +36,6 @@ const (
 	ValidParamsAltIPv4
 )
 
-func GetTestListingId() string {
-	return "0"
-}
-
 func GetValidPostCommentParams(paramType ValidPostCommentParamsType) PostCommentParams {
 	// Create a valid CommentID
 	commentID, err := GetValidPGTypeUUID()
@@ -57,7 +53,7 @@ func GetValidPostCommentParams(paramType ValidPostCommentParamsType) PostComment
 	case ValidParamsIPv6:
 		return PostCommentParams{
 			CommentID:    *commentID,
-			ListingID:    GetTestListingId(),
+			ListingID:    GetActiveTestListingID(),
 			UserIp:       "3e220f2bf981113f9b5f597168a8e13514b75a9fe9268b68e662fda5386bfb4a9490e8341315c399316cace7f41b61f7a5404fe7c04969",
 			UserID:       userID.String(),
 			Username:     "TestUserIPv6",
@@ -68,7 +64,7 @@ func GetValidPostCommentParams(paramType ValidPostCommentParamsType) PostComment
 	case ValidParamsAltIPv4:
 		return PostCommentParams{
 			CommentID:    *commentID,
-			ListingID:    GetTestListingId(),
+			ListingID:    GetActiveTestListingID(),
 			UserIp:       "9d8787f71c30a79d519688a4054b4b8a363af95e8f4b7e5b",
 			UserID:       userID.String(),
 			Username:     "TestUserAltIPv4",
@@ -79,7 +75,7 @@ func GetValidPostCommentParams(paramType ValidPostCommentParamsType) PostComment
 	default: // ValidParamsIPv4
 		return PostCommentParams{
 			CommentID:    *commentID,
-			ListingID:    GetTestListingId(),
+			ListingID:    GetActiveTestListingID(),
 			UserIp:       "bd98b9c5db0655b23e47a57ba65c2b7446bf1c08b39ac3173e89ab",
 			UserID:       userID.String(),
 			Username:     "TestUser",
@@ -88,6 +84,21 @@ func GetValidPostCommentParams(paramType ValidPostCommentParamsType) PostComment
 			IpNonce:      pgtype.Text{String: "1ee7385a435e4cc5e534b051", Valid: true},
 		}
 	}
+}
+
+// Returns a listing ID that is associated with an active zillow page
+func GetActiveListingIDs() []string {
+	return []string{"32692760", "456076139", "61991086", "241223303", "456616237"}
+}
+
+// Returns a listing ID that is not associated with an active zillow page
+func GetInactiveListingIDs() []string {
+	return []string{"3269276084814", "456076139523461", "61991086245234", "2412233032453", "456616237534"}
+}
+
+// Returns the active listing ID that should be used for tests
+func GetActiveTestListingID() string {
+	return "1"
 }
 
 // Helper to create a valid pgtype.UUID
@@ -128,7 +139,7 @@ func GetDefaultFakeRow() FakePGRowStruct {
 	userID, _ := uuid.NewV7()
 	return FakePGRowStruct{
 		CommentID:    *commentID,
-		ListingID:    GetTestListingId(),
+		ListingID:    GetActiveTestListingID(),
 		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "tester",
@@ -145,7 +156,7 @@ func GetDefaultPostCommentRow() PostCommentRow {
 	userID, _ := uuid.NewV7()
 	return PostCommentRow{
 		CommentID:    *commentID,
-		ListingID:    GetTestListingId(),
+		ListingID:    GetActiveTestListingID(),
 		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "tester",
@@ -162,7 +173,7 @@ func GetDefaultGetCommentRow() GetCommentsByListingIDRow {
 	userID, _ := uuid.NewV7()
 	return GetCommentsByListingIDRow{
 		CommentID:    *commentID,
-		ListingID:    GetTestListingId(),
+		ListingID:    GetActiveTestListingID(),
 		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "tester",
