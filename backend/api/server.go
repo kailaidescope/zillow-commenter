@@ -73,7 +73,9 @@ const (
 // Input:
 //   - dbOptions: A enum containing database connection options. Allowed values are ["production", "test"]
 func GetNewServer(serverOptions ServerOptions) (*Server, error) {
-	// Load env vars (NOT NECESSARY FOR AWS LAMBDA)
+	// Load env vars. NOT NECESSARY FOR AWS LAMBDA. Also does not work in Docker environment *unless* env_file option is used. AWS Fargate supports
+	// direct environment variable injection for secrets, so use that instead.
+
 	/* err := godotenv.Load()
 	if err != nil {
 		return nil, errors.Join(errors.New("could not load environment variables"), err)
@@ -165,6 +167,11 @@ func GetNewServer(serverOptions ServerOptions) (*Server, error) {
 	// =============================================================================================================== //
 	//                                             Mount routes below                                                  //
 	// =============================================================================================================== //
+
+	// Root-level endpoint, to pass AWS health check with Fargate container
+	router.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "api is active"})
+	})
 
 	// Top-level api routes
 	api := router.Group("/api")

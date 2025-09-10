@@ -33,7 +33,6 @@ import (
 //   - 404: If the listing does not exist.
 //   - 500: Internal server error if something goes wrong.
 func (server *Server) GetListingComments(c *gin.Context) {
-
 	// Get information from the request context
 	listingID := c.Param("listing_id")
 	_, err := server.getUserIP(c)
@@ -295,6 +294,14 @@ func (server Server) GetComments(listingID string) ([]models.APIComment, error) 
 func (server Server) getUserIP(c *gin.Context) (string, error) {
 	if server.optionsMode == Test {
 		return "0.0.0.0", nil
+	}
+	if server.optionsMode == Production {
+		// With the Fargate implementation, the user IP is passed as an overwritten query param by API Gateway
+		ip := c.Query("user_ip")
+		if ip == "" {
+			return ip, errors.New("user ip could not be obtained from query parameters")
+		}
+		return ip, nil
 	}
 
 	apiGatewayContext, ok := ginadaptercore.GetAPIGatewayContextFromContext(c.Request.Context())

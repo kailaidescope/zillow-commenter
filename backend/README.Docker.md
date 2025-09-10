@@ -18,5 +18,14 @@ Then, push it to your registry, e.g. `docker push myregistry.com/myapp`.
 Consult Docker's [getting started](https://docs.docker.com/go/get-started-sharing/)
 docs for more detail on building and pushing.
 
+### Deploying to AWS Fargate
+
+Commands:
+
+1. `docker compose build`
+2. `docker tag <docker_image_name> <aws_account_id>.dkr.ecr.region.amazonaws.com/<repository_name>:<tag>`
+3. `aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <aws_account_id>.dkr.ecr.region.amazonaws.com`
+4. `docker push <aws_account_id>.dkr.ecr.region.amazonaws.com/<repository_name>:<tag>`
+
 ### References
 * [Docker's Go guide](https://docs.docker.com/language/golang/)
