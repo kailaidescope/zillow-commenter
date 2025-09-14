@@ -9,6 +9,7 @@
 ################################################################################
 # Create a stage for building the application.
 ARG GO_VERSION=1.23.0
+ARG LAMBDA_VERSION=1.2024.10.04.19
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine AS build
 WORKDIR /src
 
@@ -44,7 +45,7 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
 # most recent version of that image when you build your Dockerfile. If
 # reproducability is important, consider using a versioned tag
 # (e.g., alpine:3.17.2) or SHA (e.g., alpine@sha256:c41ab5c992deb4fe7e5da09f67a8804a46bd0592bfdf0b1847dde0e0889d2bff).
-FROM alpine:3.22 AS final
+FROM alpine:3.22 AS update
 
 # Install any runtime dependencies that are needed to run your application.
 # Leverage a cache mount to /var/cache/apk/ to speed up subsequent builds.
@@ -68,11 +69,13 @@ RUN adduser \
     appuser
 USER appuser
 
+FROM --platform=$BUILDPLATFORM public.ecr.aws/lambda/go:${LAMBDA_VERSION} AS final
+
 # Copy the executable from the "build" stage.
 COPY --from=build /bin/server /bin/
 
 # Expose the port that the application listens on.
-EXPOSE 3000
+EXPOSE 8080
 
 # What the container should run when it is started.
 ENTRYPOINT [ "/bin/server" ]

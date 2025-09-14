@@ -8,6 +8,7 @@ import (
 
 	"log"
 
+	"github.com/aws/aws-lambda-go/lambda"
 	"zillow-commenter.com/m/api"
 )
 
@@ -29,11 +30,11 @@ func main() {
 		log.Fatal("Could not start the server")
 	} */
 
-	server.Router.Run(":3000")
+	//server.Router.Run(":3000")
 
 	// Proxy the server to AWS Lambda
-	/* if server.LambdaAdapter == nil {
+	if server.LambdaAdapter == nil {
 		log.Fatal("LambdaAdapter is not initialized")
 	}
-	lambda.Start(server.LambdaAdapter.ProxyWithContext) */
+	lambda.Start(server.LambdaAdapter.ProxyWithContext)
 }

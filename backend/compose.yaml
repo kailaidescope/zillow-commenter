@@ -7,8 +7,6 @@
 # You can add other services your application may depend on here, such as a
 # database or a cache. For examples, see the Awesome Compose repository:
 # https://github.com/docker/awesome-compose
-version: "0.1.9"
-
 name: zillowette
 
 services:
@@ -17,7 +15,7 @@ services:
       context: .
       target: final
     ports:
-      - 3000:3000
+      - 8080:8080
    
 
 # The commented out section below is an example of how to define a PostgreSQL

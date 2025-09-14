@@ -295,14 +295,14 @@ func (server Server) getUserIP(c *gin.Context) (string, error) {
 	if server.optionsMode == Test {
 		return "0.0.0.0", nil
 	}
-	if server.optionsMode == Production {
+	/* if server.optionsMode == Production {
 		// With the Fargate implementation, the user IP is passed as an overwritten query param by API Gateway
 		ip := c.Query("user_ip")
 		if ip == "" {
 			return ip, errors.New("user ip could not be obtained from query parameters")
 		}
 		return ip, nil
-	}
+	} */
 
 	apiGatewayContext, ok := ginadaptercore.GetAPIGatewayContextFromContext(c.Request.Context())
 	if !ok {
