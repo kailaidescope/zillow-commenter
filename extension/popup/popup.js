@@ -75,16 +75,16 @@ async function populateComments() {
     // Clear existing comments
     commentsListElement.innerHTML = '';
 
-    const listingId = await getListingID();
+    const listingIdAndType = await getListingIDAndType();
 
-    if (!listingId) {
+    if (!listingIdAndType) {
         displayComments(null);
         console.error("No valid listing ID found in the current URL.");
         return;
     }
 
     // Fetch comments from the API using the listing ID
-    getCommentsByListingId(listingId, displayComments);
+    getCommentsByListingId(listingIdAndType, displayComments);
 }
 
 // Displays comments not found error
@@ -156,10 +156,10 @@ function displayComments(result, error=null) {
         }
     } else {
         // If no comments are returned, check if we have a valid listing ID
-        getListingID().then(listingId => {
-            if (!listingId) {
+        getListingIDAndType().then(listingIdAndType => {
+            if (!listingIdAndType) {
                 // If no valid listing ID, disable the submit button and show an error message
-                console.error("No valid listing ID found in the current URL.");
+                console.error("No valid listing ID or type found in the current URL.");
                 const li = document.createElement('li');
                 li.textContent = 'Not on an eligible zillow listing page.';
                 commentsListElement.appendChild(li);
@@ -275,16 +275,16 @@ async function handleCommentSubmission(event) {
     // Get comment data
     const username = document.getElementById('username-input').value.trim();
     const commentText = document.getElementById('comment-input').value.trim();
-    const listingId = await getListingID();
-    if (!listingId) {
-        console.error("No valid listing ID found in the current URL.");
+    const listingIdAndType = await getListingIDAndType();
+    if (!listingIdAndType) {
+        console.error("No valid listing ID or type found in the current URL.");
         return;
     }
 
     // Compile the comment object
     const commentObj = {
         userId: getLocalUserId(),
-        listingId: listingId,
+        listingId: listingIdAndType.listingID,
         username: username,
         commentText: commentText,
     };
@@ -309,7 +309,7 @@ async function handleCommentSubmission(event) {
             }
 
             // Display the updated comments list after posting
-            getCommentsByListingId(listingId, displayComments)
+            getCommentsByListingId(listingIdAndType, displayComments)
     })
 
     /* .then(response => response.text())
@@ -323,7 +323,7 @@ async function handleCommentSubmission(event) {
 // Gets the listing ID from the current URL
 // zillow's URL format is "https://www.zillow.com/homedetails/listing-street-name/1234567890_zpid/", 
 // from which you would extract "1234567890"
-async function getListingID() {
+async function getListingIDAndType() {
     let listingURL = '';
     // Get the current tab's URL using the Chrome extension API
     const tabs = await chrome.tabs.query({ currentWindow: true, active: true });
@@ -332,18 +332,35 @@ async function getListingID() {
         listingURL = tabs[0].url;
     }
 
-    // Extract the listing ID from the URL
+    // Determine what type of listing it is (house or apartment)
 
-    // Find section of the URL that ends with "_zpid"
-    const urlParts = listingURL.split('/');
-    const zpidIndex = urlParts.findIndex(part => part.endsWith('_zpid'));
+    const houseRegex = RegExp("^https:\/\/www\.zillow\.com\/homedetails\/.*");
+    const apartmentRegex = RegExp("^https:\/\/www\.zillow\.com\/apartments\/.*$");
+
+    let listingID;
+
+    if (houseRegex.test(listingURL)) {
+        // Extract the listing ID from the URL
+        // Find section of the URL that ends with "_zpid"
+        const urlParts = listingURL.split('/');
+        const zpidIndex = urlParts.findIndex(part => part.endsWith('_zpid'));
+        
+        if (zpidIndex !== -1 && urlParts[zpidIndex]) {
+            // Gets the listing ID by removing the "_zpid" suffix
+            listingID = urlParts[zpidIndex].replace('_zpid', '');
+            //console.log("Listing ID found:", listingID);
+            return {listingID: listingID, listingType: "house"};
+        }
+    } else if (apartmentRegex.test(listingURL)) {
+        const urlParts = listingURL.split('/');
+        const aptIdIndex = urlParts.length-2;
+        
+        listingID = urlParts[aptIdIndex];
+        if (listingID.length == 6) {
+            return {listingID: listingID, listingType: "apt"};
+        }
+    } 
     
-    if (zpidIndex !== -1 && urlParts[zpidIndex]) {
-        // Gets the listing ID by removing the "_zpid" suffix
-        const listingID = urlParts[zpidIndex].replace('_zpid', '');
-        //console.log("Listing ID found:", listingID);
-        return listingID;
-    }
     // If no valid listing ID is found, return null
     // Disable the submit button and show an error message
     const submitButton = document.querySelector('#comment-form button[type="submit"]');
@@ -377,9 +394,9 @@ function displaySubmittedComment(commentObj) {
 }
 
 // Fetches the list of comments for a specific listing from the API
-function getCommentsByListingId(listingId, callbackFunc) {
-    if (!listingId) {
-        console.error("No valid listing ID provided.");
+function getCommentsByListingId(listingIdAndType, callbackFunc) {
+    if (!listingIdAndType) {
+        console.error("No valid listing ID or type provided.");
         return [];
     }
 
@@ -388,7 +405,7 @@ function getCommentsByListingId(listingId, callbackFunc) {
     redirect: 'follow'
     };
 
-    fetch(`${API_URL}/comments/${listingId}`, requestOptions)
+    fetch(`${API_URL}/comments/${listingIdAndType.listingID}`, requestOptions)
         .then(response => response.text())
         .then(result => callbackFunc(result))
         .catch(error => callbackFunc(null, error));
@@ -402,9 +419,9 @@ async function postComment(commentObj, callbackFunc) {
     // Collect comment data
     let listingTitle = await getListingTitle();
 
-    let listingId = await getListingID();
-    if (!listingId) {
-        console.error("No valid listing ID found in the current URL.");
+    let listingIdAndType = await getListingIDAndType();
+    if (!listingIdAndType) {
+        console.error("No valid listing ID or type found in the current URL.");
         return;
     }
 
@@ -414,7 +431,7 @@ async function postComment(commentObj, callbackFunc) {
 
     var urlencoded = new URLSearchParams();
     urlencoded.append("listing_title", listingTitle);
-    urlencoded.append("listing_id", listingId);
+    urlencoded.append("listing_id", listingIdAndType.listingID);
     urlencoded.append("user_id", getLocalUserId());
     urlencoded.append("username", commentObj.username);
     urlencoded.append("comment_text", commentObj.commentText);

@@ -8,7 +8,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.zillow.com/homedetails/*"],
+      "matches": ["https://www.zillow.com/homedetails/*", "https://www.zillow.com/apartments/*"],
       "js": ["getListingTitle.js"]
     }
   ],

@@ -1,5 +1,5 @@
-const site = window.location.hostname;
-console.log("Site:", site);
+const domainName = window.location.hostname;
+console.log("Site:", domainName);
 
 console.log("Get listing title script loaded");
 //alert("Content script loaded");
@@ -25,13 +25,39 @@ function handleMessages(message, sender, sendResponse) {
 
     console.log("Recieved message...");
 
-    const addressWrapper = document.querySelector('.styles__AddressWrapper-fshdp-8-111-1__sc-13x5vko-0.jDtXfP');
-    const addressElement = addressWrapper.childNodes[0];
-    let listingTitle = addressElement ? addressElement.textContent.trim() : null;
-    if (message.action == "get_listing_title") {
-        sendResponse({title: listingTitle});
+    const houseRegex = RegExp("^https:\/\/www\.zillow\.com\/homedetails\/.*");
+    const apartmentRegex = RegExp("^https:\/\/www\.zillow\.com\/apartments\/.*$");
+    const listingUrl = location.href;
+
+    let listingTitle;
+    let listingType;
+
+    if (houseRegex.test(listingUrl)) {
+        const houseAddressWrapper = document.querySelector('.styles__AddressWrapper-fshdp-8-111-1__sc-13x5vko-0.jDtXfP');
+        const houseAddressElement = houseAddressWrapper.childNodes[0];
+        listingTitle = houseAddressElement ? houseAddressElement.textContent.trim() : null;
+        listingType = "house";
+    } else if (apartmentRegex.test(listingUrl)) {
+        const apartmentAddressWrapper = document.querySelector('.BuildingInfo__BuildingInfoContainer-d8oth5-3.jHvfsu');
+        const apartmentAddressElement = apartmentAddressWrapper.childNodes[1];
+        listingTitle = apartmentAddressElement ? apartmentAddressElement.textContent.trim() : null;
+        listingType = "apartment";
     } else {
+        console.log("Listing was neither for a house nor apartment.");
+    }
+
+    console.log("Listing title, listing type: "+listingTitle+", "+listingType)
+    
+
+    
+    if (message.action != "get_listing_title") {
         sendResponse({error: "function not supported"})
+    }
+
+    if (listingTitle && listingType) {
+        sendResponse({title: listingTitle, type: listingType});
+    } else {
+        sendResponse({error: "listing not house nor apartment"});
     }
 
     // Since `fetch` is asynchronous, must send an explicit `true`
