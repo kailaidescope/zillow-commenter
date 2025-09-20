@@ -1157,6 +1157,121 @@ func makeStringOfLength(n int) string {
 	}
 } */
 
+// --- LISTING TYPE ---
+
+func TestPostCommentParamsValidation_ListingType_Required(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := GetValidPostCommentParams(ValidParamsIPv4)
+	params.ListingType = ""
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for missing ListingType, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_ListingType_InvalidValue(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := GetValidPostCommentParams(ValidParamsIPv4)
+	params.ListingType = "condo" // Not allowed
+
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for invalid ListingType, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_ListingType_RandomText(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	randomInputs := []string{
+		"randomtext",
+		"12345",
+		"!@#$%",
+		"houseapt",
+		"apthouse",
+		"APT",
+		"House",
+		"ap t",
+		"hou se",
+		"",
+	}
+
+	for _, input := range randomInputs {
+		params := GetValidPostCommentParams(ValidParamsIPv4)
+		params.ListingType = input
+		err := validate.Struct(params)
+		if input == "house" || input == "apt" {
+			if err != nil {
+				t.Errorf("Expected valid ListingType '%s', got error: %v", input, err)
+			}
+		} else {
+			if err == nil {
+				t.Errorf("Expected error for ListingType '%s', got nil", input)
+			}
+		}
+	}
+}
+
+func TestPostCommentParamsValidation_ListingType_Whitespace(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := GetValidPostCommentParams(ValidParamsIPv4)
+	params.ListingType = " house "
+	err := validate.Struct(params)
+	if err == nil {
+		t.Error("Expected error for ListingType with leading/trailing whitespace, got nil")
+	}
+}
+
+func TestPostCommentParamsValidation_ListingType_CaseSensitivity(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	cases := []string{"House", "APT", "Apt", "HOUSE"}
+	for _, c := range cases {
+		params := GetValidPostCommentParams(ValidParamsIPv4)
+		params.ListingType = c
+		err := validate.Struct(params)
+		if err == nil {
+			t.Errorf("Expected error for ListingType '%s' (case sensitivity), got nil", c)
+		}
+	}
+}
+
+func TestPostCommentParamsValidation_ListingType_ValidHouse(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := GetValidPostCommentParams(ValidParamsIPv4)
+	params.ListingType = "house"
+
+	err := validate.Struct(params)
+	if err != nil {
+		t.Errorf("Expected valid ListingType 'house', got error: %v", err)
+	}
+}
+
+func TestPostCommentParamsValidation_ListingType_ValidApt(t *testing.T) {
+	teardown, validate := ValidationSetupAndTeardown(t)
+	defer teardown(t)
+
+	params := GetValidPostCommentParams(ValidParamsIPv4)
+	params.ListingType = "apt"
+	params.ListingID = GetTestListingId()[params.ListingType]
+
+	err := validate.Struct(params)
+	if err != nil {
+		t.Errorf("Expected valid ListingType 'apt', got error: %v", err)
+	}
+}
+
 // ===================================================================================================================== //
 //                                        Custom UUID Validator Tests                                                    //
 // ===================================================================================================================== //
@@ -1307,5 +1422,104 @@ func TestValidateIP_IPv6WithPort(t *testing.T) {
 	err := ValidateIP(validate, ip)
 	if err == nil {
 		t.Error("Expected error for IPv6 with port, got nil")
+	}
+}
+
+// ===================================================================================================================== //
+//                                Custom Listing ID and Type Validator Tests                                             //
+// ===================================================================================================================== //
+
+func TestValidateListingType_ValidTypes(t *testing.T) {
+	validTypes := []string{"house", "apt"}
+	for _, typ := range validTypes {
+		if err := ValidateListingType(typ); err != nil {
+			t.Errorf("Expected valid listing type '%s', got error: %v", typ, err)
+		}
+	}
+}
+
+func TestValidateListingType_InvalidTypes(t *testing.T) {
+	invalidTypes := []string{"condo", "apartment", "", "HOUSE", "APT", "random"}
+	for _, typ := range invalidTypes {
+		if err := ValidateListingType(typ); err == nil {
+			t.Errorf("Expected error for invalid listing type '%s', got nil", typ)
+		}
+	}
+}
+
+func TestValidateListingID_ValidHouse(t *testing.T) {
+	_, validate := ValidationSetupAndTeardown(t)
+	// Valid house listing ID: numeric, min=1, max=20, no dot
+	err := ValidateListingID(validate, "house", "123456")
+	if err != nil {
+		t.Errorf("Expected valid house listing ID, got error: %v", err)
+	}
+}
+
+func TestValidateListingID_InvalidHouse(t *testing.T) {
+	_, validate := ValidationSetupAndTeardown(t)
+	invalidIDs := []string{"", "abc", "123.45", "123456789012345678901"} // empty, non-numeric, dot, too long
+	for _, id := range invalidIDs {
+		err := ValidateListingID(validate, "house", id)
+		if err == nil {
+			t.Errorf("Expected error for invalid house listing ID '%s', got nil", id)
+		}
+	}
+}
+
+func TestValidateListingID_ValidApt(t *testing.T) {
+	_, validate := ValidationSetupAndTeardown(t)
+	// Valid apt listing ID: alphanum, len=6
+	err := ValidateListingID(validate, "apt", "A1B2C3")
+	if err != nil {
+		t.Errorf("Expected valid apt listing ID, got error: %v", err)
+	}
+}
+
+func TestValidateListingID_InvalidApt(t *testing.T) {
+	_, validate := ValidationSetupAndTeardown(t)
+	invalidIDs := []string{"", "A1B2C", "A1B2C34", "A1B2C!", "1234567"} // too short, too long, invalid char
+	for _, id := range invalidIDs {
+		err := ValidateListingID(validate, "apt", id)
+		if err == nil {
+			t.Errorf("Expected error for invalid apt listing ID '%s', got nil", id)
+		}
+	}
+}
+
+func TestValidateListingTypeAndID_Valid(t *testing.T) {
+	_, validate := ValidationSetupAndTeardown(t)
+	tests := []struct {
+		listingType string
+		listingID   string
+	}{
+		{"house", "123456"},
+		{"apt", "A1B2C3"},
+	}
+	for _, tt := range tests {
+		err := ValidateListingTypeAndID(validate, tt.listingType, tt.listingID)
+		if err != nil {
+			t.Errorf("Expected valid type/id (%s/%s), got error: %v", tt.listingType, tt.listingID, err)
+		}
+	}
+}
+
+func TestValidateListingTypeAndID_Invalid(t *testing.T) {
+	_, validate := ValidationSetupAndTeardown(t)
+	tests := []struct {
+		listingType string
+		listingID   string
+	}{
+		{"house", ""},       // invalid ID
+		{"apt", "123"},      // invalid ID
+		{"condo", "123456"}, // invalid type
+		{"apt", "A1B2C!"},   // invalid ID
+		{"", "A1B2C3"},      // invalid type
+	}
+	for _, tt := range tests {
+		err := ValidateListingTypeAndID(validate, tt.listingType, tt.listingID)
+		if err == nil {
+			t.Errorf("Expected error for type/id (%s/%s), got nil", tt.listingType, tt.listingID)
+		}
 	}
 }

@@ -49,8 +49,12 @@ func formatResponse(resp *resty.Response) string {
 	return resp.Status() + ", " + resp.String()
 }
 
+func getTestListingType() string {
+	return "house"
+}
+
 func getTestListingId() string {
-	return sqlc.GetTestListingId()
+	return sqlc.GetTestListingId()[getTestListingType()]
 }
 
 func getTestListingTitle() string {
@@ -76,6 +80,7 @@ func TestPostComment_ValidateListingID_InvalidID(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "This is a comment.")
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -115,6 +120,7 @@ func TestPostComment_SanitizesUserID(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "This is a comment.")
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -147,6 +153,7 @@ func TestPostComment_SanitizesUsername(t *testing.T) {
 	values.Set("username", "<b>TestUser</b>")
 	values.Set("comment_text", "This is a comment.")
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -179,6 +186,7 @@ func TestPostComment_SanitizesCommentText(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "<script>alert('xss')</script>This is a comment.")
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -224,6 +232,7 @@ func runSanitizationTestCases(t *testing.T, replacementText string, cases []stru
 		values.Set("username", "TestUser")
 		values.Set("comment_text", c.input)
 		values.Set("listing_title", getTestListingTitle())
+		values.Set("listing_type", getTestListingType())
 
 		// Send comment to API
 		client := resty.New()
@@ -355,6 +364,7 @@ func TestPostComment_RejectsMissingListingID(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "This is a comment.")
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, _ := client.R().
@@ -380,6 +390,7 @@ func TestPostComment_RejectsInvalidUserID(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "This is a comment.")
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -410,6 +421,7 @@ func TestPostComment_RejectsInvalidUsername(t *testing.T) {
 	values.Set("username", "user!@#")
 	values.Set("comment_text", "This is a comment.")
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -440,6 +452,7 @@ func TestPostComment_RejectsTooLongCommentText(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", makeStringOfLength(301))
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -470,6 +483,7 @@ func TestPostComment_RejectsMissingCommentText(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "") // Missing comment text
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -500,6 +514,7 @@ func TestPostComment_RejectsNonPrintableASCIIInCommentText(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "This is a valid comment.\a") // ASCII 7 (bell)
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -531,6 +546,7 @@ func TestPostComment_RejectsAllNonPrintableASCIIInCommentText(t *testing.T) {
 		comment := "Valid text" + string(rune(i))
 		values.Set("comment_text", comment)
 		values.Set("listing_title", getTestListingTitle())
+		values.Set("listing_type", getTestListingType())
 
 		client := resty.New()
 		resp, err := client.R().
@@ -562,6 +578,7 @@ func TestPostComment_RejectsAllNonPrintableASCIIInCommentText(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "Valid text"+string(rune(127)))
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -597,6 +614,7 @@ func TestPostComment_AcceptsOnlyPrintableASCIIInCommentText(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", comment)
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -628,6 +646,7 @@ func TestPostCommentParamsValidation_ListingTitle_Required(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", params.CommentText)
 	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -657,6 +676,7 @@ func TestPostCommentParamsValidation_ListingTitle_MinLength(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", params.CommentText)
 	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -686,6 +706,7 @@ func TestPostCommentParamsValidation_ListingTitle_MaxLength(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", params.CommentText)
 	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -715,6 +736,7 @@ func TestPostCommentParamsValidation_ListingTitle_AllowedCharacters(t *testing.T
 	values.Set("username", "TestUser")
 	values.Set("comment_text", params.CommentText)
 	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -735,6 +757,7 @@ func TestPostCommentParamsValidation_ListingTitle_AllowedCharacters(t *testing.T
 		params.ListingTitle.Valid = true
 
 		values.Set("listing_title", params.ListingTitle.String)
+		values.Set("listing_type", getTestListingType())
 
 		client := resty.New()
 		resp, err := client.R().
@@ -769,6 +792,7 @@ func TestPostCommentParamsValidation_ListingTitle_DisallowedCharacters(t *testin
 		params.ListingTitle.Valid = true
 
 		values.Set("listing_title", params.ListingTitle.String)
+		values.Set("listing_type", getTestListingType())
 
 		client := resty.New()
 		resp, err := client.R().
@@ -788,6 +812,7 @@ func TestPostCommentParamsValidation_ListingTitle_DisallowedCharacters(t *testin
 	params.ListingTitle.Valid = true
 
 	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().

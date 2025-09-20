@@ -25,6 +25,7 @@ type FakePGRowStruct struct {
 	Extract      pgtype.Numeric
 	ListingTitle pgtype.Text
 	IpNonce      pgtype.Text
+	ListingType  string
 }
 
 // Helper to create a valid PostCommentParams
@@ -36,8 +37,8 @@ const (
 	ValidParamsAltIPv4
 )
 
-func GetTestListingId() string {
-	return "0"
+func GetTestListingId() map[string]string {
+	return map[string]string{"house": "0", "apt": "0a0a0a"}
 }
 
 func GetValidPostCommentParams(paramType ValidPostCommentParamsType) PostCommentParams {
@@ -53,39 +54,45 @@ func GetValidPostCommentParams(paramType ValidPostCommentParamsType) PostComment
 		log.Fatal("Failed to create valid UUID for UserID", err)
 	}
 
+	listingType := "house"
+	listingId := GetTestListingId()[listingType]
+
 	switch paramType {
 	case ValidParamsIPv6:
 		return PostCommentParams{
 			CommentID:    *commentID,
-			ListingID:    GetTestListingId(),
+			ListingID:    listingId,
 			UserIp:       "3e220f2bf981113f9b5f597168a8e13514b75a9fe9268b68e662fda5386bfb4a9490e8341315c399316cace7f41b61f7a5404fe7c04969",
 			UserID:       userID.String(),
 			Username:     "TestUserIPv6",
 			CommentText:  "This is a valid IPv6 comment.",
 			ListingTitle: pgtype.Text{String: "Regular title", Valid: true},
 			IpNonce:      pgtype.Text{String: "0d00ad4b080209200aa852f2", Valid: true},
+			ListingType:  listingType,
 		}
 	case ValidParamsAltIPv4:
 		return PostCommentParams{
 			CommentID:    *commentID,
-			ListingID:    GetTestListingId(),
+			ListingID:    listingId,
 			UserIp:       "9d8787f71c30a79d519688a4054b4b8a363af95e8f4b7e5b",
 			UserID:       userID.String(),
 			Username:     "TestUserAltIPv4",
 			CommentText:  "This is another valid IPv4 comment.",
 			ListingTitle: pgtype.Text{String: "Regular title", Valid: true},
 			IpNonce:      pgtype.Text{String: "bdc990f0a33e852bd0e412dc", Valid: true},
+			ListingType:  listingType,
 		}
 	default: // ValidParamsIPv4
 		return PostCommentParams{
 			CommentID:    *commentID,
-			ListingID:    GetTestListingId(),
+			ListingID:    listingId,
 			UserIp:       "bd98b9c5db0655b23e47a57ba65c2b7446bf1c08b39ac3173e89ab",
 			UserID:       userID.String(),
 			Username:     "TestUser",
 			CommentText:  "This is a valid comment.",
 			ListingTitle: pgtype.Text{String: "Regular title", Valid: true},
 			IpNonce:      pgtype.Text{String: "1ee7385a435e4cc5e534b051", Valid: true},
+			ListingType:  listingType,
 		}
 	}
 }
@@ -126,9 +133,11 @@ func GetGenericPGTypeTimestamp() pgtype.Numeric {
 func GetDefaultFakeRow() FakePGRowStruct {
 	commentID, _ := GetValidPGTypeUUID()
 	userID, _ := uuid.NewV7()
+	listingType := "house"
+	listingId := GetTestListingId()[listingType]
 	return FakePGRowStruct{
 		CommentID:    *commentID,
-		ListingID:    GetTestListingId(),
+		ListingID:    listingId,
 		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "tester",
@@ -136,6 +145,7 @@ func GetDefaultFakeRow() FakePGRowStruct {
 		Extract:      GetValidPGTypeNumeric(time.Now().UnixMicro()),
 		ListingTitle: pgtype.Text{String: "test title", Valid: true},
 		IpNonce:      pgtype.Text{String: "96dc49a63b34dcf9229c0ed5", Valid: true},
+		ListingType:  listingType,
 	}
 }
 
@@ -143,9 +153,11 @@ func GetDefaultFakeRow() FakePGRowStruct {
 func GetDefaultPostCommentRow() PostCommentRow {
 	commentID, _ := GetValidPGTypeUUID()
 	userID, _ := uuid.NewV7()
+	listingType := "house"
+	listingId := GetTestListingId()[listingType]
 	return PostCommentRow{
 		CommentID:    *commentID,
-		ListingID:    GetTestListingId(),
+		ListingID:    listingId,
 		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "tester",
@@ -153,6 +165,7 @@ func GetDefaultPostCommentRow() PostCommentRow {
 		Extract:      GetValidPGTypeNumeric(time.Now().UnixMicro()),
 		ListingTitle: pgtype.Text{String: "test title", Valid: true},
 		IpNonce:      pgtype.Text{String: "96dc49a63b34dcf9229c0ed5", Valid: true},
+		ListingType:  listingType,
 	}
 }
 
@@ -160,9 +173,11 @@ func GetDefaultPostCommentRow() PostCommentRow {
 func GetDefaultGetCommentRow() GetCommentsByListingIDRow {
 	commentID, _ := GetValidPGTypeUUID()
 	userID, _ := uuid.NewV7()
+	listingType := "house"
+	listingId := GetTestListingId()[listingType]
 	return GetCommentsByListingIDRow{
 		CommentID:    *commentID,
-		ListingID:    GetTestListingId(),
+		ListingID:    listingId,
 		UserIp:       "9f67720a05fb8ca4781f1cb5fc60b8ab7a2b068bf2be9f0660",
 		UserID:       userID.String(),
 		Username:     "tester",
@@ -170,5 +185,6 @@ func GetDefaultGetCommentRow() GetCommentsByListingIDRow {
 		Extract:      GetValidPGTypeNumeric(time.Now().UnixMicro()),
 		ListingTitle: pgtype.Text{String: "test title", Valid: true},
 		IpNonce:      pgtype.Text{String: "96dc49a63b34dcf9229c0ed5", Valid: true},
+		ListingType:  listingType,
 	}
 }

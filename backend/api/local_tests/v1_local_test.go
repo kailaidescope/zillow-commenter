@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -55,13 +54,12 @@ func getNewLocalAPI() (*api.Server, error) {
 // It retrieves the API IP, then sends it to the testing suite.
 func setupAndTeardown(tb testing.TB) (func(tb testing.TB), *api.Server) {
 	// Retrieve environment variables
-	os.Chdir("../..")
 	godotenv.Load()
 
 	// Setup local server instance
 	server, err := getNewLocalAPI()
 	if err != nil {
-		log.Fatal("Could not start local server instance")
+		tb.Fatal("Could not start local server instance:", err)
 	}
 
 	// Run server in a coroutine to allow execution of other functions
@@ -90,8 +88,12 @@ func formatResponse(resp *resty.Response) string {
 	return resp.Status() + ", " + resp.String()
 }
 
+func getTestListingType() string {
+	return "house"
+}
+
 func getTestListingId() string {
-	return sqlc.GetTestListingId()
+	return sqlc.GetTestListingId()[getTestListingType()]
 }
 
 func getTestListingTitle() string {
@@ -121,6 +123,7 @@ func TestPostComment_ValidateListingID_InvalidID(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "This is a comment.")
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -155,6 +158,7 @@ func TestPostComment_SanitizesUserID(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "This is a comment.")
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -187,6 +191,7 @@ func TestPostComment_SanitizesUsername(t *testing.T) {
 	values.Set("username", "<b>TestUser</b>")
 	values.Set("comment_text", "This is a comment.")
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -219,6 +224,7 @@ func TestPostComment_SanitizesCommentText(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "<script>alert('xss')</script>This is a comment.")
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -261,6 +267,7 @@ func runSanitizationTestCases(t *testing.T, replacementText string, cases []stru
 		values.Set("username", "TestUser")
 		values.Set("comment_text", c.input)
 		values.Set("listing_title", getTestListingTitle())
+		values.Set("listing_type", getTestListingType())
 
 		// Send comment to API
 		client := resty.New()
@@ -392,6 +399,7 @@ func TestPostComment_RejectsMissingListingID(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "This is a comment.")
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, _ := client.R().
@@ -417,6 +425,7 @@ func TestPostComment_RejectsInvalidUserID(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "This is a comment.")
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -447,6 +456,7 @@ func TestPostComment_RejectsInvalidUsername(t *testing.T) {
 	values.Set("username", "user!@#")
 	values.Set("comment_text", "This is a comment.")
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -477,6 +487,7 @@ func TestPostComment_RejectsTooLongCommentText(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", makeStringOfLength(301))
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -507,6 +518,7 @@ func TestPostComment_RejectsMissingCommentText(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "") // Missing comment text
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -537,6 +549,7 @@ func TestPostComment_RejectsNonPrintableASCIIInCommentText(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "This is a valid comment.\a") // ASCII 7 (bell)
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -568,6 +581,7 @@ func TestPostComment_RejectsAllNonPrintableASCIIInCommentText(t *testing.T) {
 		comment := "Valid text" + string(rune(i))
 		values.Set("comment_text", comment)
 		values.Set("listing_title", getTestListingTitle())
+		values.Set("listing_type", getTestListingType())
 
 		client := resty.New()
 		resp, err := client.R().
@@ -599,6 +613,7 @@ func TestPostComment_RejectsAllNonPrintableASCIIInCommentText(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", "Valid text"+string(rune(127)))
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -634,6 +649,7 @@ func TestPostComment_AcceptsOnlyPrintableASCIIInCommentText(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", comment)
 	values.Set("listing_title", getTestListingTitle())
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -665,6 +681,7 @@ func TestPostCommentParamsValidation_ListingTitle_Required(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", params.CommentText)
 	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -694,6 +711,7 @@ func TestPostCommentParamsValidation_ListingTitle_MinLength(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", params.CommentText)
 	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -723,6 +741,7 @@ func TestPostCommentParamsValidation_ListingTitle_MaxLength(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", params.CommentText)
 	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -752,6 +771,7 @@ func TestPostCommentParamsValidation_ListingTitle_AllowedCharacters(t *testing.T
 	values.Set("username", "TestUser")
 	values.Set("comment_text", params.CommentText)
 	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -772,6 +792,7 @@ func TestPostCommentParamsValidation_ListingTitle_AllowedCharacters(t *testing.T
 		params.ListingTitle.Valid = true
 
 		values.Set("listing_title", params.ListingTitle.String)
+		values.Set("listing_type", getTestListingType())
 
 		client := resty.New()
 		resp, err := client.R().
@@ -806,6 +827,7 @@ func TestPostCommentParamsValidation_ListingTitle_DisallowedCharacters(t *testin
 		params.ListingTitle.Valid = true
 
 		values.Set("listing_title", params.ListingTitle.String)
+		values.Set("listing_type", getTestListingType())
 
 		client := resty.New()
 		resp, err := client.R().
@@ -825,6 +847,7 @@ func TestPostCommentParamsValidation_ListingTitle_DisallowedCharacters(t *testin
 	params.ListingTitle.Valid = true
 
 	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().
@@ -837,6 +860,232 @@ func TestPostCommentParamsValidation_ListingTitle_DisallowedCharacters(t *testin
 	}
 	if resp.StatusCode() != http.StatusBadRequest {
 		t.Errorf("Expected 400 for invalid characters in listing_title #%d (%s), got %d: %s", 127, string(rune(127)), resp.StatusCode(), formatResponse(resp))
+	}
+}
+
+// --- ListingType Tests ---
+
+func TestPostCommentParamsValidation_ListingType_Required(t *testing.T) {
+	teardown, _ := setupAndTeardown(t)
+	defer teardown(t)
+
+	params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
+	params.ListingType = ""
+
+	values := url.Values{}
+	values.Set("listing_id", getTestListingId())
+	values.Set("user_id", params.UserID)
+	values.Set("username", "TestUser")
+	values.Set("comment_text", params.CommentText)
+	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", params.ListingType)
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/x-www-form-urlencoded").
+		SetFormDataFromValues(values).
+		Post(domainAddress + "/api/v1/comments")
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if resp.StatusCode() != 400 {
+		t.Errorf("Expected 400 for missing listing_type, got %d: %s", resp.StatusCode(), formatResponse(resp))
+	}
+}
+
+func TestPostCommentParamsValidation_ListingType_InvalidValue(t *testing.T) {
+	teardown, _ := setupAndTeardown(t)
+	defer teardown(t)
+
+	params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
+	params.ListingType = "condo" // Not allowed
+
+	values := url.Values{}
+	values.Set("listing_id", getTestListingId())
+	values.Set("user_id", params.UserID)
+	values.Set("username", "TestUser")
+	values.Set("comment_text", params.CommentText)
+	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", params.ListingType)
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/x-www-form-urlencoded").
+		SetFormDataFromValues(values).
+		Post(domainAddress + "/api/v1/comments")
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if resp.StatusCode() != 400 {
+		t.Errorf("Expected 400 for invalid listing_type, got %d: %s", resp.StatusCode(), formatResponse(resp))
+	}
+}
+
+func TestPostCommentParamsValidation_ListingType_RandomText(t *testing.T) {
+	teardown, _ := setupAndTeardown(t)
+	defer teardown(t)
+
+	randomInputs := []string{
+		"randomtext", "12345", "!@#$%", "houseapt", "apthouse", "APT", "House", "ap t", "hou se", "",
+	}
+
+	for _, input := range randomInputs {
+		params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
+		params.ListingType = input
+		if input == "apt" {
+			params.ListingID = sqlc.GetTestListingId()["apt"]
+		} else {
+			params.ListingID = getTestListingId()
+		}
+
+		values := url.Values{}
+		values.Set("listing_id", params.ListingID)
+		values.Set("user_id", params.UserID)
+		values.Set("username", "TestUser")
+		values.Set("comment_text", params.CommentText)
+		values.Set("listing_title", params.ListingTitle.String)
+		values.Set("listing_type", params.ListingType)
+
+		client := resty.New()
+		resp, err := client.R().
+			SetHeader("Content-Type", "application/x-www-form-urlencoded").
+			SetFormDataFromValues(values).
+			Post(domainAddress + "/api/v1/comments")
+
+		if err != nil {
+			t.Fatalf("Request failed: %v", err)
+		}
+		if input == "house" || input == "apt" {
+			if resp.StatusCode() != 201 {
+				t.Errorf("Expected 201 for valid listing_type '%s', got %d: %s", input, resp.StatusCode(), formatResponse(resp))
+			}
+		} else {
+			if resp.StatusCode() != 400 {
+				t.Errorf("Expected 400 for invalid listing_type '%s', got %d: %s", input, resp.StatusCode(), formatResponse(resp))
+			}
+		}
+	}
+}
+
+func TestPostCommentParamsValidation_ListingType_Whitespace(t *testing.T) {
+	teardown, _ := setupAndTeardown(t)
+	defer teardown(t)
+
+	params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
+	params.ListingType = " house "
+
+	values := url.Values{}
+	values.Set("listing_id", getTestListingId())
+	values.Set("user_id", params.UserID)
+	values.Set("username", "TestUser")
+	values.Set("comment_text", params.CommentText)
+	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", params.ListingType)
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/x-www-form-urlencoded").
+		SetFormDataFromValues(values).
+		Post(domainAddress + "/api/v1/comments")
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if resp.StatusCode() != 400 {
+		t.Errorf("Expected 400 for listing_type with whitespace, got %d: %s", resp.StatusCode(), formatResponse(resp))
+	}
+}
+
+func TestPostCommentParamsValidation_ListingType_CaseSensitivity(t *testing.T) {
+	teardown, _ := setupAndTeardown(t)
+	defer teardown(t)
+
+	cases := []string{"House", "APT", "Apt", "HOUSE"}
+	for _, c := range cases {
+		params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
+		params.ListingType = c
+
+		values := url.Values{}
+		values.Set("listing_id", getTestListingId())
+		values.Set("user_id", params.UserID)
+		values.Set("username", "TestUser")
+		values.Set("comment_text", params.CommentText)
+		values.Set("listing_title", params.ListingTitle.String)
+		values.Set("listing_type", params.ListingType)
+
+		client := resty.New()
+		resp, err := client.R().
+			SetHeader("Content-Type", "application/x-www-form-urlencoded").
+			SetFormDataFromValues(values).
+			Post(domainAddress + "/api/v1/comments")
+
+		if err != nil {
+			t.Fatalf("Request failed: %v", err)
+		}
+		if resp.StatusCode() != 400 {
+			t.Errorf("Expected 400 for case-sensitive listing_type '%s', got %d: %s", c, resp.StatusCode(), formatResponse(resp))
+		}
+	}
+}
+
+func TestPostCommentParamsValidation_ListingType_ValidHouse(t *testing.T) {
+	teardown, _ := setupAndTeardown(t)
+	defer teardown(t)
+
+	params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
+	params.ListingType = "house"
+
+	values := url.Values{}
+	values.Set("listing_id", getTestListingId())
+	values.Set("user_id", params.UserID)
+	values.Set("username", "TestUser")
+	values.Set("comment_text", params.CommentText)
+	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", params.ListingType)
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/x-www-form-urlencoded").
+		SetFormDataFromValues(values).
+		Post(domainAddress + "/api/v1/comments")
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if resp.StatusCode() != 201 {
+		t.Errorf("Expected 201 for valid listing_type 'house', got %d: %s", resp.StatusCode(), formatResponse(resp))
+	}
+}
+
+func TestPostCommentParamsValidation_ListingType_ValidApt(t *testing.T) {
+	teardown, _ := setupAndTeardown(t)
+	defer teardown(t)
+
+	params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
+	params.ListingType = "apt"
+	params.ListingID = sqlc.GetTestListingId()["apt"]
+
+	values := url.Values{}
+	values.Set("listing_id", params.ListingID)
+	values.Set("user_id", params.UserID)
+	values.Set("username", "TestUser")
+	values.Set("comment_text", params.CommentText)
+	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", params.ListingType)
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/x-www-form-urlencoded").
+		SetFormDataFromValues(values).
+		Post(domainAddress + "/api/v1/comments")
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if resp.StatusCode() != 201 {
+		t.Errorf("Expected 201 for valid listing_type 'apt', got %d: %s", resp.StatusCode(), formatResponse(resp))
 	}
 }
 
@@ -858,6 +1107,7 @@ func TestIPEncryption_RoundTrip(t *testing.T) {
 	values.Set("username", "TestUser")
 	values.Set("comment_text", params.CommentText)
 	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", getTestListingType())
 
 	client := resty.New()
 	resp, err := client.R().

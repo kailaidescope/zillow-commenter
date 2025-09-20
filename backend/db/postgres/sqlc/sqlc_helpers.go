@@ -59,8 +59,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"regexp"
-	"slices"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -125,14 +125,45 @@ import (
 	return true, nil
 } */
 
-// GetListingIDValidationTags returns the Validator package tags used to check listing IDs
-func GetListingIDValidationTags() string {
-	return "required,number,excludes=.,min=1,max=20"
+// GetAllowedListingTypesAndValidationTags returns a slice of all allowed listing types and their respective validation tags
+func GetAllowedListingTypesAndValidationTags() map[string]string {
+	return map[string]string{"house": "required,number,excludes=.,min=1,max=20", "apt": "required,alphanum,len=6"}
 }
 
-// GetAllowedListingTypes returns a slice of all allowed listing types
-func GetAllowedListingTypes() []string {
-	return []string{"house", "apt"}
+// ValidateListingType validates a listing type from a whitelist
+func ValidateListingType(listingType string) error {
+	// Must be "house" or "apt"
+	listingTypes := []string{}
+	for currentListingType := range maps.Keys(GetAllowedListingTypesAndValidationTags()) {
+		if currentListingType == listingType {
+			return nil
+		}
+		listingTypes = append(listingTypes, currentListingType)
+	}
+	return errors.New("listing type validation failed, listing type must be one of: " + fmt.Sprint(listingTypes))
+}
+
+// ValidateListingID validates a listing ID based on the listing type
+func ValidateListingID(validate *validator.Validate, listingType string, listingID string) error {
+	listingTypes := []string{}
+	for currentListingType, validationTags := range GetAllowedListingTypesAndValidationTags() {
+		if listingType == currentListingType {
+			return validate.Var(listingID, validationTags)
+		}
+		listingTypes = append(listingTypes, currentListingType)
+	}
+	return errors.New("listing ID validation failed, type must be one of: " + fmt.Sprint(listingTypes))
+}
+
+// ValidateListingTypeAndID validates both the listing ID and type in a compact function
+func ValidateListingTypeAndID(validate *validator.Validate, listingType string, listingID string) error {
+	if err := ValidateListingType(listingType); err != nil {
+		return err
+	}
+	if err := ValidateListingID(validate, listingType, listingID); err != nil {
+		return err
+	}
+	return nil
 }
 
 // PostCommentParams.Sanitize sanitizes the fields of the PostCommentParams struct using the provided sanitization policy.
@@ -218,12 +249,17 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 		sl.ReportError(postCommentParams.CommentID, "CommentID", "CommentID", commentIdValidation, "")
 	}
 
+	// LISTING TYPE
+
+	// Should be either "house" or "apt"
+	if err := ValidateListingType(postCommentParams.ListingType); err != nil {
+		sl.ReportError(postCommentParams.ListingType, "ListingType", "Enum", err.Error(), "")
+	}
+
 	// LISTING ID
 
-	listingIdValidation := GetListingIDValidationTags()
-	err = sl.Validator().Var(postCommentParams.ListingID, listingIdValidation)
-	if err != nil {
-		sl.ReportError(postCommentParams, "ListingID", "ListingID", listingIdValidation, "")
+	if err = ValidateListingID(sl.Validator(), postCommentParams.ListingType, postCommentParams.ListingID); err != nil {
+		sl.ReportError(postCommentParams, "ListingID", "ListingID", err.Error(), "")
 	}
 
 	// USER IP
@@ -291,13 +327,6 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 	err = sl.Validator().Var(postCommentParams.IpNonce.String, ipNonceValidation)
 	if err != nil {
 		sl.ReportError(postCommentParams.IpNonce.String, "IpNonce", "String", ipNonceValidation, "")
-	}
-
-	// LISTING TYPE
-
-	// Should be either "house" or "apt"
-	if !slices.Contains(GetAllowedListingTypes(), postCommentParams.ListingType) {
-		sl.ReportError(postCommentParams.ListingType, "ListingType", "Enum", fmt.Sprint("ListingType must be in:", GetAllowedListingTypes()), "")
 	}
 }
 

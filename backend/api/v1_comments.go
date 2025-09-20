@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"slices"
 	"time"
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
@@ -47,17 +46,11 @@ func (server *Server) GetListingComments(c *gin.Context) {
 
 	log.Println("GetListingComments called with listing_id:", listingID, " and type:", listingType, "\nat timestamp:", timestamp)
 
-	// Validate listing ID
-	err = server.Validator.Var(listingID, sqlc.GetListingIDValidationTags())
-	if err != nil {
-		log.Println("Invalid listing ID provided:", err)
+	// Validate listing type and ID
+	if err := sqlc.ValidateListingTypeAndID(server.Validator, listingType, listingID); err != nil {
+		log.Println("Validation error on listing type or ID:", err)
 		c.JSON(http.StatusBadRequest, getReturnableErrorMessage("Invalid input"))
-	}
-
-	// Validate listing type
-	if !slices.Contains(sqlc.GetAllowedListingTypes(), listingType) {
-		log.Println("Invalid listing type provided:", listingType)
-		c.JSON(http.StatusBadRequest, getReturnableErrorMessage("Invalid input"))
+		return
 	}
 
 	// Check if the listing exists in the temporary comment database
@@ -148,6 +141,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 		CommentText:  commentText,
 		ListingTitle: pgtype.Text{String: listingTitle, Valid: true},                      // Convert listingTitle to a pgtype and mark it as valid (i.e. not null)
 		IpNonce:      pgtype.Text{String: encryptedIPPackage.NonceHexString, Valid: true}, // Convert ipNonce to a pgtype and mark it as valid (i.e. not null)
+		ListingType:  listingType,
 	}
 
 	// Log the new comment creation

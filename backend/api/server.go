@@ -30,8 +30,10 @@ import (
 	"context"
 	"crypto/cipher"
 	"errors"
+	"log"
 	"net/http"
 	"os"
+	"path"
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
 	"zillow-commenter.com/m/encryption"
@@ -42,6 +44,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	"github.com/microcosm-cc/bluemonday"
 )
 
@@ -75,11 +78,24 @@ const (
 func GetNewServer(serverOptions ServerOptions) (*Server, error) {
 	// Load env vars. NOT NECESSARY FOR AWS LAMBDA. Also does not work in Docker environment *unless* env_file option is used. AWS Fargate supports
 	// direct environment variable injection for secrets, so use that instead.
-
-	/* err := godotenv.Load()
-	if err != nil {
-		return nil, errors.Join(errors.New("could not load environment variables"), err)
-	} */
+	if serverOptions == Test {
+		for {
+			workingDirectoryPath, err := os.Getwd()
+			if err != nil {
+				log.Fatal(err)
+			}
+			_, workingDirectoryName := path.Split(workingDirectoryPath)
+			log.Println(workingDirectoryName, workingDirectoryPath)
+			if workingDirectoryName == "backend" {
+				break
+			}
+			os.Chdir("..")
+		}
+		err := godotenv.Load()
+		if err != nil {
+			return nil, errors.Join(errors.New("could not load environment variables"), err)
+		}
+	}
 
 	// TOKEN MAKER
 
