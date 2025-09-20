@@ -57,8 +57,10 @@ package sqlc
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"regexp"
+	"slices"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -122,6 +124,16 @@ import (
 
 	return true, nil
 } */
+
+// GetListingIDValidationTags returns the Validator package tags used to check listing IDs
+func GetListingIDValidationTags() string {
+	return "required,number,excludes=.,min=1,max=20"
+}
+
+// GetAllowedListingTypes returns a slice of all allowed listing types
+func GetAllowedListingTypes() []string {
+	return []string{"house", "apt"}
+}
 
 // PostCommentParams.Sanitize sanitizes the fields of the PostCommentParams struct using the provided sanitization policy.
 // Should always be called before inserting the struct into the database to ensure that all fields are sanitized.
@@ -208,7 +220,7 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 
 	// LISTING ID
 
-	listingIdValidation := "required,number,excludes=.,min=1,max=20"
+	listingIdValidation := GetListingIDValidationTags()
 	err = sl.Validator().Var(postCommentParams.ListingID, listingIdValidation)
 	if err != nil {
 		sl.ReportError(postCommentParams, "ListingID", "ListingID", listingIdValidation, "")
@@ -279,6 +291,13 @@ func PostCommentParamsValidation(sl validator.StructLevel) {
 	err = sl.Validator().Var(postCommentParams.IpNonce.String, ipNonceValidation)
 	if err != nil {
 		sl.ReportError(postCommentParams.IpNonce.String, "IpNonce", "String", ipNonceValidation, "")
+	}
+
+	// LISTING TYPE
+
+	// Should be either "house" or "apt"
+	if !slices.Contains(GetAllowedListingTypes(), postCommentParams.ListingType) {
+		sl.ReportError(postCommentParams.ListingType, "ListingType", "Enum", fmt.Sprint("ListingType must be in:", GetAllowedListingTypes()), "")
 	}
 }
 

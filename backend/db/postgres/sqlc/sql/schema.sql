@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS comments (
     comment_text varchar(300) NOT NULL,
     date_created TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     listing_title varchar(200),
-    ip_nonce varchar(24)
+    ip_nonce varchar(24),
+    listing_type varchar(5) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS blacklist (

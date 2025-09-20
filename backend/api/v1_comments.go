@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"slices"
 	"time"
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
@@ -30,11 +31,12 @@ import (
 //
 // Output:
 //   - 200: A JSON array of comments for the specified listing. Comment structure defined in models package.
-//   - 404: If the listing does not exist.
+//   - 400: Invalid input data.
 //   - 500: Internal server error if something goes wrong.
 func (server *Server) GetListingComments(c *gin.Context) {
 	// Get information from the request context
 	listingID := c.Param("listing_id")
+	listingType := c.Query("listing_type")
 	_, err := server.getUserIP(c)
 	if err != nil {
 		log.Println("Error getting user IP:", err)
@@ -43,7 +45,20 @@ func (server *Server) GetListingComments(c *gin.Context) {
 	}
 	timestamp := time.Now().Unix()
 
-	log.Println("GetListingComments called with listing_id:", listingID, "\nat timestamp:", timestamp)
+	log.Println("GetListingComments called with listing_id:", listingID, " and type:", listingType, "\nat timestamp:", timestamp)
+
+	// Validate listing ID
+	err = server.Validator.Var(listingID, sqlc.GetListingIDValidationTags())
+	if err != nil {
+		log.Println("Invalid listing ID provided:", err)
+		c.JSON(http.StatusBadRequest, getReturnableErrorMessage("Invalid input"))
+	}
+
+	// Validate listing type
+	if !slices.Contains(sqlc.GetAllowedListingTypes(), listingType) {
+		log.Println("Invalid listing type provided:", listingType)
+		c.JSON(http.StatusBadRequest, getReturnableErrorMessage("Invalid input"))
+	}
 
 	// Check if the listing exists in the temporary comment database
 	comments, err := server.GetComments(listingID)
@@ -51,7 +66,7 @@ func (server *Server) GetListingComments(c *gin.Context) {
 		log.Println("Error getting comments from db", listingID)
 
 		// Tell the client that something went wrong
-		c.JSON(500, getReturnableErrorMessage("Internal server error"))
+		c.JSON(http.StatusInternalServerError, getReturnableErrorMessage("Internal server error"))
 		return
 	}
 
@@ -91,6 +106,7 @@ func (server *Server) PostListingComment(c *gin.Context) {
 
 	// Get postform data
 	listingID := c.PostForm("listing_id")
+	listingType := c.PostForm("listing_type")
 	userID := c.PostForm("user_id")
 	username := c.PostForm("username")
 	commentText := c.PostForm("comment_text")
@@ -104,8 +120,8 @@ func (server *Server) PostListingComment(c *gin.Context) {
 	}
 
 	// Log the request details
-	log.Printf("PostListingComment called with listing_id: %s, user_id: %s, username: %s, comment_text: %s, listing_title: %s\nat timestamp: %d",
-		listingID, userID, username, commentText, listingTitle, timestamp)
+	log.Printf("PostListingComment called with listing_id: %s, listing_type %s, user_id: %s, username: %s, comment_text: %s, listing_title: %s\nat timestamp: %d",
+		listingID, listingType, userID, username, commentText, listingTitle, timestamp)
 
 	// Generate a new UUID for the comment using a timestamp-based version (v7) to ensure uniqueness
 	commentID, err := uuid.NewV7()

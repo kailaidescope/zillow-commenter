@@ -111,8 +111,7 @@ function displayCommentFetchError(error) {
     commentsListElement.appendChild(li);
     const submitButton = document.querySelector('#comment-form button[type="submit"]');
     if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.style.backgroundColor = '#ccc';
+        turnOffSubmitButton(submitButton);
     }
     return
 }
@@ -184,6 +183,13 @@ function displayComments(result, error=null) {
 
     if (!Array.isArray(comments)) {
         console.error('Invalid comments data:', comments);
+        // If comments are bugged, display an error message
+        const li = document.createElement('li');
+        li.textContent = 'Our apologies, this type of listing does not yet support comments.';
+        commentsListElement.appendChild(li);
+        const submitButton = document.getElementById("submit-comment");
+        turnOffSubmitButton(submitButton);
+        return;
     }
 
     if (!comments || comments.length === 0) {
@@ -265,11 +271,9 @@ async function handleCommentSubmission(event) {
 
     // Disable the form for 5 seconds to prevent multiple submissions
     const submitButton = event.target.querySelector('button[type="submit"]');
-    submitButton.disabled = true;
-    submitButton.style.backgroundColor = '#ccc';
+    turnOffSubmitButton(submitButton);
     setTimeout(() => {
-        submitButton.disabled = false;
-        submitButton.style.backgroundColor = '';
+        turnOnSubmitButton(submitButton);
     }, 3000);
 
     // Get comment data
@@ -349,6 +353,7 @@ async function getListingIDAndType() {
             // Gets the listing ID by removing the "_zpid" suffix
             listingID = urlParts[zpidIndex].replace('_zpid', '');
             //console.log("Listing ID found:", listingID);
+            console.log({listingID: listingID, listingType: "house"});
             return {listingID: listingID, listingType: "house"};
         }
     } else if (apartmentRegex.test(listingURL)) {
@@ -357,6 +362,7 @@ async function getListingIDAndType() {
         
         listingID = urlParts[aptIdIndex];
         if (listingID.length == 6) {
+            console.log({listingID: listingID, listingType: "apt"});
             return {listingID: listingID, listingType: "apt"};
         }
     } 
@@ -365,8 +371,7 @@ async function getListingIDAndType() {
     // Disable the submit button and show an error message
     const submitButton = document.querySelector('#comment-form button[type="submit"]');
     if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.style.backgroundColor = '#ccc';
+        turnOffSubmitButton(submitButton);
     }
     console.error("No valid listing ID found in the current URL.");
     return null; // No valid listing ID found
@@ -647,4 +652,14 @@ function sanitizeListingTitle(listingTitle) {
     if (typeof listingTitle !== 'string') return '';
     // Printable ASCII: 32 (space) to 126 (~)
     return listingTitle.replace(/[^\x20-\x7E]+/g, '');
+}
+
+function turnOffSubmitButton(submitButton) {
+    submitButton.disabled = true;
+    submitButton.style.backgroundColor = '#ccc';
+}
+
+function turnOnSubmitButton(submitButton) {
+    submitButton.disabled = false;
+    submitButton.style.backgroundColor = ''; 
 }
