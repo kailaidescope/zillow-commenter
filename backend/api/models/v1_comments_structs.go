@@ -35,6 +35,7 @@ type APIComment struct {
 	Timestamp    int64     `json:"timestamp"`
 	ListingTitle *string   `json:"listing_title"`
 	IPNonce      *string   `json:"ip_nonce"`
+	ListingType  string    `json:"listing_type"`
 }
 
 // ResponseComment represents a comment on a listing that can be safely returned to the user.
@@ -42,11 +43,12 @@ type APIComment struct {
 // Notes:
 //   - Timestamp is in microseconds since the epoch, stored as an int64. Is valid until the 29th millenium. (All hail the God Emperor of Mankind!)
 type ResponseComment struct {
-	TargetListing string    `json:"listing_id"`
-	CommentID     uuid.UUID `json:"comment_id"`
-	Username      string    `json:"username"`
-	CommentText   string    `json:"comment_text"`
-	Timestamp     int64     `json:"timestamp"`
+	ListingID   string    `json:"listing_id"`
+	ListingType string    `json:"listing_type"`
+	CommentID   uuid.UUID `json:"comment_id"`
+	Username    string    `json:"username"`
+	CommentText string    `json:"comment_text"`
+	Timestamp   int64     `json:"timestamp"`
 }
 
 // GenericSQLCRowToComment converts any struct with the required fields to a Comment object.
@@ -157,6 +159,13 @@ func GenericSQLCRowToComment(row interface{}) (*APIComment, error) {
 	}
 	ipNonce := convertPGTextToString(ipNonceField.Interface().(pgtype.Text))
 
+	// Extract ListingType
+	listingTypeField, ok := getFieldAndValidity("ListingType")
+	if !ok {
+		return nil, errors.New("missing ListingType field")
+	}
+	listingType := listingTypeField.String()
+
 	return &APIComment{
 		ListingID:    listingID,
 		CommentID:    commentUUID,
@@ -167,6 +176,7 @@ func GenericSQLCRowToComment(row interface{}) (*APIComment, error) {
 		Timestamp:    timestamp,
 		ListingTitle: listingTitle,
 		IPNonce:      ipNonce,
+		ListingType:  listingType,
 	}, nil
 }
 
@@ -230,6 +240,7 @@ func GetCommentRowToComment(row sqlc.GetCommentsByListingIDRow) (*APIComment, er
 		Timestamp:    timestamp,
 		ListingTitle: listingTitle,
 		IPNonce:      ipNonce,
+		ListingType:  row.ListingType,
 	}, nil
 }
 
@@ -266,6 +277,7 @@ func (comment *APIComment) ToPostCommentParams() *sqlc.PostCommentParams {
 		CommentText:  comment.CommentText,
 		ListingTitle: convertStringToPGText(comment.ListingTitle),
 		IpNonce:      convertStringToPGText(comment.IPNonce),
+		ListingType:  comment.ListingType,
 	}
 }
 
@@ -297,6 +309,7 @@ func CommentToGetCommentRow(comment APIComment) *sqlc.GetCommentsByListingIDRow 
 		Extract:      extract,
 		ListingTitle: convertStringToPGText(comment.ListingTitle),
 		IpNonce:      convertStringToPGText(comment.IPNonce),
+		ListingType:  comment.ListingType,
 	}
 }
 
@@ -312,13 +325,14 @@ func CommentsToGetCommentRows(comments []APIComment) []sqlc.GetCommentsByListing
 
 // ToResponse converts a Comment to a ResponseComment.
 // This is used to format the comment data for API responses, excluding sensitive information like UserIP and UserID.
-func (c APIComment) ToResponse() ResponseComment {
+func (comment APIComment) ToResponse() ResponseComment {
 	return ResponseComment{
-		TargetListing: c.ListingID,
-		CommentID:     c.CommentID,
-		Username:      c.Username,
-		CommentText:   c.CommentText,
-		Timestamp:     c.Timestamp,
+		ListingID:   comment.ListingID,
+		CommentID:   comment.CommentID,
+		Username:    comment.Username,
+		CommentText: comment.CommentText,
+		Timestamp:   comment.Timestamp,
+		ListingType: comment.ListingType,
 	}
 }
 

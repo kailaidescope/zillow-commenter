@@ -64,6 +64,9 @@ func checkGenericRowToCommentConversion(genericRow interface{}, comment *APIComm
 	if comment.IPNonce != nil && *comment.IPNonce != reflectedRow.FieldByName("IpNonce").Interface().(pgtype.Text).String {
 		t.Error("Expected comment and row to have same ip nonce, but got comment.IPNonce=", *comment.IPNonce, " and row.IpNonce.String=", reflectedRow.FieldByName("IpNonce").Interface().(pgtype.Text).String)
 	}
+	if reflectedRow.FieldByName("ListingType").Interface().(string) != comment.ListingType {
+		t.Error("Expected ListingType ", reflectedRow.FieldByName("ListingType").Interface().(string), ", got ", comment.ListingType)
+	}
 }
 
 // Test for arbitrary row conversion to Comment.
@@ -323,6 +326,9 @@ func checkCommentToPostParamsConversion(comment APIComment, postParams *sqlc.Pos
 	if comment.IPNonce != nil && *comment.IPNonce != postParams.IpNonce.String {
 		t.Error("Expected comment and row to have same ip nonce, but got comment.IPNonce=", *comment.IPNonce, " and row.IpNonce.String=", postParams.IpNonce.String)
 	}
+	if comment.ListingType != postParams.ListingType {
+		t.Error("Expected ListingType ", comment.ListingType, ", got ", postParams.ListingType)
+	}
 }
 
 func checkCommentToGenericRowConversion(comment APIComment, genericRow interface{}, t *testing.T) {
@@ -370,6 +376,9 @@ func checkCommentToGenericRowConversion(comment APIComment, genericRow interface
 	}
 	if comment.IPNonce != nil && *comment.IPNonce != reflectedRow.FieldByName("IpNonce").Interface().(pgtype.Text).String {
 		t.Error("Expected comment and row to have same ip nonce, but got comment.IPNonce=", *comment.IPNonce, " and row.IpNonce.String=", reflectedRow.FieldByName("IpNonce").Interface().(pgtype.Text).String)
+	}
+	if comment.ListingType != reflectedRow.FieldByName("ListingType").Interface().(string) {
+		t.Error("Expected ListingType ", comment.ListingType, ", got ", reflectedRow.FieldByName("ListingType").Interface().(string))
 	}
 }
 
@@ -687,7 +696,7 @@ func TestCommentsToGetCommentRows_IPNonce(t *testing.T) {
 func TestComment_ToResponse(t *testing.T) {
 	comment := GetDefaultAPIComment()
 	resp := comment.ToResponse()
-	if resp.TargetListing != comment.ListingID || resp.CommentID != comment.CommentID {
+	if resp.ListingID != comment.ListingID || resp.ListingType != comment.ListingType || resp.CommentID != comment.CommentID || resp.Username != comment.Username || resp.CommentText != comment.CommentText || resp.Timestamp != comment.Timestamp {
 		t.Errorf("ToResponse mismatch: %+v vs %+v", resp, comment)
 	}
 }
@@ -699,8 +708,8 @@ func TestToResponseSlice(t *testing.T) {
 	if len(resps) != 1 {
 		t.Errorf("Expected 1 response, got %d", len(resps))
 	}
-	if resps[0].TargetListing != comment.ListingID {
-		t.Errorf("Unexpected TargetListing: %s", resps[0].TargetListing)
+	if resps[0].ListingID != comment.ListingID {
+		t.Errorf("Unexpected TargetListing: %s", resps[0].ListingID)
 	}
 }
 
