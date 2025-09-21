@@ -163,7 +163,7 @@ function displayComments(result, error=null) {
     if (result) {
         try {
             comments = JSON.parse(result);
-            console.log(`Returned ${comments.length} comments`);
+            console.log(`Returned ${comments ? comments.length : 0} comments`);
             //console.log('Parsed comments:', comments);
         } catch (error) {
             console.error('Error parsing comments:', error);
