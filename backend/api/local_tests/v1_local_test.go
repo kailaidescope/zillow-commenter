@@ -1124,7 +1124,7 @@ func TestIPEncryption_RoundTrip(t *testing.T) {
 
 	// GET all comments from listing_id=0
 
-	comments, err := server.GetComments("0")
+	comments, err := server.GetComments("0", "house")
 
 	log.Println(comments[0])
 	decryptedIP, err := encryption.DecryptStringAESGCM(server.AesCipherGCM, &encryption.EncryptedPackage{EncryptedHexString: comments[0].UserIP, NonceHexString: *comments[0].IPNonce})

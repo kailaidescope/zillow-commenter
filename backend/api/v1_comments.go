@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
@@ -54,7 +55,7 @@ func (server *Server) GetListingComments(c *gin.Context) {
 	}
 
 	// Check if the listing exists in the temporary comment database
-	comments, err := server.GetComments(listingID)
+	comments, err := server.GetComments(listingID, listingType)
 	if err != nil {
 		log.Println("Error getting comments from db", listingID)
 
@@ -68,7 +69,7 @@ func (server *Server) GetListingComments(c *gin.Context) {
 
 	// Return the comments as a JSON response
 	c.JSON(http.StatusOK, responseComments)
-	log.Println("Successfully returning comments for listing:", listingID, ":", responseComments)
+	log.Println("Successfully returning "+strconv.Itoa(len(responseComments))+" comments for listing:", listingID)
 }
 
 // PostListingComment creates a new comment for a specific zillow listing.
@@ -264,7 +265,7 @@ func (server *Server) GenerateUserID(c *gin.Context) {
 // Output:
 //   - A slice of Comment structs containing the comments for the specified listing.
 //   - An error if the listing doesn't exist in the DB.
-func (server Server) GetComments(listingID string) ([]models.APIComment, error) {
+func (server Server) GetComments(listingID string, listingType string) ([]models.APIComment, error) {
 	// Acquire a Postgres connection from the pool
 	postgresConnection, err := server.GetPostgresPool().Acquire(context.TODO())
 	if err != nil {
@@ -275,7 +276,10 @@ func (server Server) GetComments(listingID string) ([]models.APIComment, error) 
 	postgresQueryClient := sqlc.New(postgresConnection)
 
 	// Query the database for comments by listing ID
-	commentRows, err := postgresQueryClient.GetCommentsByListingID(context.TODO(), listingID)
+	commentRows, err := postgresQueryClient.GetCommentsByListingID(context.TODO(), sqlc.GetCommentsByListingIDParams{
+		ListingID:   listingID,
+		ListingType: listingType,
+	})
 	if err != nil {
 		log.Println("Error retrieving comments from database for listing:", listingID, "-", err)
 		return nil, errors.Join(err, errors.New("failed to retrieve comments from database"))

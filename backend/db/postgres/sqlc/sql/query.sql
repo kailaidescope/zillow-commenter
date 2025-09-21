@@ -1,6 +1,6 @@
 -- name: GetCommentsByListingID :many
 SELECT comment_id, listing_id, user_ip, user_id, username, comment_text, EXTRACT(EPOCH FROM date_created), listing_title, ip_nonce, listing_type FROM comments
-WHERE listing_id = $1
+WHERE listing_id = $1 AND listing_type = $2
 ORDER BY date_created DESC;
 
 -- name: PostComment :one

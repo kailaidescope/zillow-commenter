@@ -5,6 +5,8 @@ const API_URL = `https://${API_ADDRESS}:${API_PORT}/api/v1`; */
 let API_ADDRESS = window.localStorage.getItem('zillow_commenter_api_address') || "";
 let API_URL = `${API_ADDRESS}/api/v1`;
 
+// Get current tabs
+const CURRENT_TABS = await chrome.tabs.query({active: true, lastFocusedWindow: true});
 
 // Log the current user ID from localStorage
 console.log("User ID: ", getLocalUserId());
@@ -17,6 +19,22 @@ populateComments();
 
 // Hide error field
 hideErrorField()
+
+// Handles the comment form submission
+document.getElementById('comment-form').addEventListener('submit', handleCommentSubmission);
+
+// Add hotkey for getting listing title
+document.addEventListener("keyup", (event) => {
+    if (event.altKey && event.key == "m") {
+        getListingTitle();
+    }
+});
+
+// Initialize html element listeners
+initializeCommentInputValidation();
+initializeZillowetteIcon();
+
+console.log("Saved current tab ID:", CURRENT_TABS[0] ? CURRENT_TABS[0].id : "failed to save");
 
 // Sets a unique user ID in localStorage if it doesn't exist
 //
@@ -145,6 +163,7 @@ function displayComments(result, error=null) {
     if (result) {
         try {
             comments = JSON.parse(result);
+            console.log(`Returned ${comments.length} comments`);
             //console.log('Parsed comments:', comments);
         } catch (error) {
             console.error('Error parsing comments:', error);
@@ -181,7 +200,7 @@ function displayComments(result, error=null) {
         console.log('Displaying comment, comments is null');
     }
 
-    if (!Array.isArray(comments)) {
+    /* if () {
         console.error('Invalid comments data:', comments);
         // If comments are bugged, display an error message
         const li = document.createElement('li');
@@ -190,9 +209,9 @@ function displayComments(result, error=null) {
         const submitButton = document.getElementById("submit-comment");
         turnOffSubmitButton(submitButton);
         return;
-    }
+    } */
 
-    if (!comments || comments.length === 0) {
+    if (!comments || !Array.isArray(comments) || comments.length === 0) {
         // If no comments, display a message
         const li = document.createElement('li');
         li.textContent = 'No comments available for this listing.';
@@ -260,10 +279,6 @@ function displayURL() {
 // Call this function to display the current URL in the comments tab
 //displayURL()
 
-
-// Handles the comment form submission
-document.getElementById('comment-form').addEventListener('submit', handleCommentSubmission);
-
 // Compiles the form data and user data into a struct for submission
 async function handleCommentSubmission(event) {
     // Stop default form submission behavior
@@ -288,9 +303,10 @@ async function handleCommentSubmission(event) {
     // Compile the comment object
     const commentObj = {
         userId: getLocalUserId(),
-        listingId: listingIdAndType.listingID,
+        listingID: listingIdAndType.listingID,
         username: username,
         commentText: commentText,
+        listingType: listingIdAndType.listingType,
     };
 
     //console.log('Form submission:', commentObj);
@@ -314,7 +330,11 @@ async function handleCommentSubmission(event) {
 
             // Display the updated comments list after posting
             getCommentsByListingId(listingIdAndType, displayComments)
-    })
+    }).then(result => console.log("Got result "+result)).catch(
+        error => {
+            console.log("Got error when posting comment to "+`${API_URL}/comments`+": "+error);
+            return;
+        });
 
     /* .then(response => response.text())
         .then(result => callbackFunc(result))
@@ -329,11 +349,18 @@ async function handleCommentSubmission(event) {
 // from which you would extract "1234567890"
 async function getListingIDAndType() {
     let listingURL = '';
-    // Get the current tab's URL using the Chrome extension API
-    const tabs = await chrome.tabs.query({ currentWindow: true, active: true });
-    //console.log("Current tabs:", tabs);
-    if (tabs.length > 0 && tabs[0].url) {
-        listingURL = tabs[0].url;
+
+    if (CURRENT_TABS[0] != null) {
+        listingURL = CURRENT_TABS[0].url;
+    } else {
+        // Get the current tab's URL using the Chrome extension API
+        const tabs = await chrome.tabs.query({ currentWindow: true, active: true });
+        //console.log("Current tabs:", tabs);
+        if (tabs.length > 0 && tabs[0].url) {
+            listingURL = tabs[0].url;
+        } else {
+            throw new Error("Failed to get current URL");
+        }
     }
 
     // Determine what type of listing it is (house or apartment)
@@ -353,7 +380,7 @@ async function getListingIDAndType() {
             // Gets the listing ID by removing the "_zpid" suffix
             listingID = urlParts[zpidIndex].replace('_zpid', '');
             //console.log("Listing ID found:", listingID);
-            console.log({listingID: listingID, listingType: "house"});
+            //console.log({listingID: listingID, listingType: "house"});
             return {listingID: listingID, listingType: "house"};
         }
     } else if (apartmentRegex.test(listingURL)) {
@@ -362,7 +389,7 @@ async function getListingIDAndType() {
         
         listingID = urlParts[aptIdIndex];
         if (listingID.length == 6) {
-            console.log({listingID: listingID, listingType: "apt"});
+            //console.log({listingID: listingID, listingType: "apt"});
             return {listingID: listingID, listingType: "apt"};
         }
     } 
@@ -410,7 +437,7 @@ function getCommentsByListingId(listingIdAndType, callbackFunc) {
     redirect: 'follow'
     };
 
-    fetch(`${API_URL}/comments/${listingIdAndType.listingID}`, requestOptions)
+    fetch(`${API_URL}/comments/${listingIdAndType.listingID}?listing_type=${listingIdAndType.listingType}`, requestOptions)
         .then(response => response.text())
         .then(result => callbackFunc(result))
         .catch(error => callbackFunc(null, error));
@@ -424,11 +451,12 @@ async function postComment(commentObj, callbackFunc) {
     // Collect comment data
     let listingTitle = await getListingTitle();
 
-    let listingIdAndType = await getListingIDAndType();
+    // Already should be in "commentObj"
+    /* let listingIdAndType = await getListingIDAndType();
     if (!listingIdAndType) {
         console.error("No valid listing ID or type found in the current URL.");
         return;
-    }
+    } */
 
     // Prepare form data for API
     var myHeaders = new Headers();
@@ -436,10 +464,11 @@ async function postComment(commentObj, callbackFunc) {
 
     var urlencoded = new URLSearchParams();
     urlencoded.append("listing_title", listingTitle);
-    urlencoded.append("listing_id", listingIdAndType.listingID);
+    urlencoded.append("listing_id", commentObj.listingID);
     urlencoded.append("user_id", getLocalUserId());
     urlencoded.append("username", commentObj.username);
     urlencoded.append("comment_text", commentObj.commentText);
+    urlencoded.append("listing_type", commentObj.listingType)
 
     var requestOptions = {
     method: 'POST',
@@ -497,57 +526,59 @@ function hideErrorField() {
 }
 
 
-// Add event listener for comment input validation (vanilla JS, multi-line support)
-document.getElementById('comment-input').addEventListener('keyup', function validateCommentInput() {
-    const errorMsg = "Must be letters, numbers, or punction.";
-    const textarea = this;
-    const pattern = new RegExp(textarea.getAttribute('pattern'));
-    let hasError = false;
+function initializeCommentInputValidation() {
+    // Add event listener for comment input validation (vanilla JS, multi-line support)
+    document.getElementById('comment-input').addEventListener('keyup', function validateCommentInput() {
+        const errorMsg = "Must be letters, numbers, or punction.";
+        const textarea = this;
+        const pattern = new RegExp(textarea.getAttribute('pattern'));
+        let hasError = false;
 
-    // Print helpful debugging data
-    /* console.log("Regex pattern:",pattern);
-    // Print textarea.value encoded in ASCII hexadecimal
-    const asciiHex = Array.from(textarea.value)
-        .map(char => char.charCodeAt(0).toString(16).padStart(2, '0'))
-        .join(' ');
-    console.log("ASCII hex encoding:", asciiHex); */
+        // Print helpful debugging data
+        /* console.log("Regex pattern:",pattern);
+        // Print textarea.value encoded in ASCII hexadecimal
+        const asciiHex = Array.from(textarea.value)
+            .map(char => char.charCodeAt(0).toString(16).padStart(2, '0'))
+            .join(' ');
+        console.log("ASCII hex encoding:", asciiHex); */
 
-    // Check the regex pattern against the whole comment text
-    if (!pattern.test(textarea.value)) {
-        hasError = true;
-        console.log("Comment text has an error:\n\n",textarea.value,"\n");
-    }
-
-    /* Validate each line separately  (OLD METHOD)
-    const lines = textarea.value.split("\n");
-    let index = 0;
-    for (let line of lines) {
-        index++;
-        if (line == "") {
-            continue;
-        }
-        if (!pattern.test(line)) {
+        // Check the regex pattern against the whole comment text
+        if (!pattern.test(textarea.value)) {
             hasError = true;
-            console.log("Line #",index,":'"+line+"' has an error.");
-            break;
+            console.log("Comment text has an error:\n\n",textarea.value,"\n");
         }
-    } */
-    //console.log("Comment field is valid:",!hasError);
-    if (typeof textarea.setCustomValidity === 'function') {
-        textarea.setCustomValidity(hasError ? errorMsg : '');
-    } else {
-        textarea.classList.toggle('error', hasError);
-        textarea.classList.toggle('ok', !hasError);
-        if (hasError) {
-            textarea.title = errorMsg;
-        } else {
-            textarea.removeAttribute('title');
-        }
-    }
-});
 
-// Modal popup logic for zillowette icon
-document.addEventListener('DOMContentLoaded', function() {
+        /* Validate each line separately  (OLD METHOD)
+        const lines = textarea.value.split("\n");
+        let index = 0;
+        for (let line of lines) {
+            index++;
+            if (line == "") {
+                continue;
+            }
+            if (!pattern.test(line)) {
+                hasError = true;
+                console.log("Line #",index,":'"+line+"' has an error.");
+                break;
+            }
+        } */
+        //console.log("Comment field is valid:",!hasError);
+        if (typeof textarea.setCustomValidity === 'function') {
+            textarea.setCustomValidity(hasError ? errorMsg : '');
+        } else {
+            textarea.classList.toggle('error', hasError);
+            textarea.classList.toggle('ok', !hasError);
+            if (hasError) {
+                textarea.title = errorMsg;
+            } else {
+                textarea.removeAttribute('title');
+            }
+        }
+    });
+}
+
+function initializeZillowetteIcon() {
+    // Modal popup logic for zillowette icon
     const icon = document.getElementById('zillowette-icon');
     const modal = document.getElementById('icon-modal');
     const input = document.getElementById('icon-modal-input');
@@ -587,7 +618,7 @@ document.addEventListener('DOMContentLoaded', function() {
             submitBtn.click();
         }
     });
-});
+}
 
 function setApiAddress(apiAddress) {
     API_ADDRESS = apiAddress;
@@ -601,29 +632,33 @@ function setApiAddress(apiAddress) {
     return API_URL;
 }
 
-document.addEventListener("keyup", (event) => {
-    if (event.altKey && event.key == "m") {
-        getListingTitle();
-    }
-});
-
 // Gets listing title from the injected content script
 async function getListingTitle() {
     /* const {statusCode, title} = await chrome.runtime.sendMessage({
         action: 'get_listing_title'
     }); */
 
-    // Get current tab
-    const currentTabs = await chrome.tabs.query({active: true, lastFocusedWindow: true});    
+    // Get current tab ID
+    let currentTabID;
 
-    if (currentTabs[0] == null) { 
-        console.error("Current tab is null when querying for listing title.");
-        throw new Error("Current tab is null when querying for listing title.");
+    if (CURRENT_TABS[0] != null) {
+        currentTabID = CURRENT_TABS[0].id;
+    } else {
+        const currentTabs = await chrome.tabs.query({active: true, lastFocusedWindow: true});  
+
+        if (currentTabs[0] == null) { 
+            console.log("Current tabs:",currentTabs)
+            console.error("Current tab is null when querying for listing title.");
+            throw new Error("Current tab is null when querying for listing title.");
+        } 
+
+        currentTabID = currentTabs[0].id
     }
+    
 
     // Query current tab's content script for a title
     //console.log("Got current tabs:",tabs)
-    const response = await chrome.tabs.sendMessage(currentTabs[0].id, {action: "get_listing_title"});
+    const response = await chrome.tabs.sendMessage(currentTabID, {action: "get_listing_title"});
 
     if (chrome.runtime.lastError) {
         // Called when an error occurs in getting the title

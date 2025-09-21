@@ -13,9 +13,14 @@ import (
 
 const getCommentsByListingID = `-- name: GetCommentsByListingID :many
 SELECT comment_id, listing_id, user_ip, user_id, username, comment_text, EXTRACT(EPOCH FROM date_created), listing_title, ip_nonce, listing_type FROM comments
-WHERE listing_id = $1
+WHERE listing_id = $1 AND listing_type = $2
 ORDER BY date_created DESC
 `
+
+type GetCommentsByListingIDParams struct {
+	ListingID   string
+	ListingType string
+}
 
 type GetCommentsByListingIDRow struct {
 	CommentID    pgtype.UUID
@@ -30,8 +35,8 @@ type GetCommentsByListingIDRow struct {
 	ListingType  string
 }
 
-func (q *Queries) GetCommentsByListingID(ctx context.Context, listingID string) ([]GetCommentsByListingIDRow, error) {
-	rows, err := q.db.Query(ctx, getCommentsByListingID, listingID)
+func (q *Queries) GetCommentsByListingID(ctx context.Context, arg GetCommentsByListingIDParams) ([]GetCommentsByListingIDRow, error) {
+	rows, err := q.db.Query(ctx, getCommentsByListingID, arg.ListingID, arg.ListingType)
 	if err != nil {
 		return nil, err
 	}
