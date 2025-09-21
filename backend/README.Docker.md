@@ -27,5 +27,10 @@ Commands:
 3. `aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <aws_account_id>.dkr.ecr.region.amazonaws.com`
 4. `docker push <aws_account_id>.dkr.ecr.region.amazonaws.com/<repository_name>:<tag>`
 
+Notes:
+
+- Make sure to use the ARM64 architecture to deploy the image on Lambda
+
 ### References
-* [Docker's Go guide](https://docs.docker.com/language/golang/)
+
+- [Docker's Go guide](https://docs.docker.com/language/golang/)

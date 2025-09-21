@@ -13,15 +13,15 @@ import (
 	"zillow-commenter.com/m/api"
 )
 
-var server *api.Server
+var SERVER *api.Server
 
 func init() {
-	/* // Server //
+	// Server //
 	var err error
-	server, err = api.GetNewServer(api.Production)
+	SERVER, err = api.GetNewServer(api.Production)
 	if err != nil {
-		log.Fatal("Could not start the server", err)
-	} */
+		log.Println("Could not create the lambda server object", err)
+	}
 }
 
 func main() {
@@ -43,26 +43,27 @@ func main() {
 }
 
 func runLambdaServer() {
-	// Server //
+	log.Println("=== STARTING LAMBDA SERVER INSTANCE ===")
+	/* // Server //
 	var err error
 	server, err = api.GetNewServer(api.Production)
 	if err != nil {
-		log.Fatal("Could not start the server", err)
-	}
+		log.Fatal("Could not create the lambda the server object", err)
+	} */
 
 	// Proxy the server to AWS Lambda
-	if server.LambdaAdapter == nil {
+	if SERVER.LambdaAdapter == nil {
 		log.Fatal("LambdaAdapter is not initialized")
 	}
-	lambda.Start(server.LambdaAdapter.ProxyWithContext)
+	lambda.Start(SERVER.LambdaAdapter.ProxyWithContext)
 }
 
 func runLocalServer() {
-	log.Println("STARTING LOCAL SERVER INSTANCE...")
+	log.Println("=== *STARTING LOCAL SERVER INSTANCE* ===")
 	// Server //
 	server, err := api.GetNewServer(api.Test)
 	if err != nil {
-		log.Fatal("Could not start the local server", err)
+		log.Fatal("Could not create the local server object", err)
 	}
 
 	server.Router.Run(":3000")
