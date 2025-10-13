@@ -577,6 +577,25 @@ function initializeCommentInputValidation() {
     });
 }
 
+// Make comment input field submit upon "enter" and add newline upon "shift + enter"
+document.getElementById('comment-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        if (e.shiftKey) {
+            // Insert newline
+            const textarea = e.target;
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            textarea.value = textarea.value.substring(0, start) + "\n" + textarea.value.substring(end);
+            textarea.selectionStart = textarea.selectionEnd = start + 1;
+            e.preventDefault();
+        } else {
+            // Submit form
+            e.preventDefault();
+            document.getElementById('comment-form').requestSubmit();
+        }
+    }
+});
+
 function initializeZillowetteIcon() {
     // Modal popup logic for zillowette icon
     const icon = document.getElementById('zillowette-icon');
