@@ -37,6 +37,8 @@ import (
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
 	"zillow-commenter.com/m/encryption"
+	errorhandling "zillow-commenter.com/m/errorHandling"
+	"zillow-commenter.com/m/moderation"
 	"zillow-commenter.com/m/token"
 
 	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
@@ -57,6 +59,7 @@ type Server struct {
 	pool              *pgxpool.Pool
 	optionsMode       ServerOptions
 	AesCipherGCM      cipher.AEAD
+	Moderator         *moderation.Moderator
 }
 
 func (server *Server) GetPostgresPool() *pgxpool.Pool {
@@ -76,8 +79,7 @@ const (
 // Input:
 //   - dbOptions: A enum containing database connection options. Allowed values are ["production", "test"]
 func GetNewServer(serverOptions ServerOptions) (*Server, error) {
-	// Load env vars. NOT NECESSARY FOR AWS LAMBDA. Also does not work in Docker environment *unless* env_file option is used. AWS Fargate supports
-	// direct environment variable injection for secrets, so use that instead.
+	// Load env vars. NOT NECESSARY FOR AWS LAMBDA. Also does not work in Docker environment *unless* env_file option is used.
 	if serverOptions == Test {
 		for {
 			workingDirectoryPath, err := os.Getwd()
@@ -162,6 +164,15 @@ func GetNewServer(serverOptions ServerOptions) (*Server, error) {
 		return nil, errors.Join(errors.New("failed to generate AES cipher for server"), err)
 	}
 
+	// MODERATOR
+
+	moderator, err := moderation.NewModerator(os.Getenv("MODERATION_CONFIG_FILE"), os.Getenv("AI_API_KEY"), pool)
+	if err != nil {
+		return nil, errorhandling.ErrorAnd("faield to initialize moderator for server", err)
+	}
+
+	log.Println("Moderator initialized:", moderator.Blacklist, moderator.AIClient, moderator.DbConnectionPool)
+
 	// Collect server singleton variables
 	server := &Server{
 		Router:            router,
@@ -171,6 +182,7 @@ func GetNewServer(serverOptions ServerOptions) (*Server, error) {
 		pool:              pool,
 		optionsMode:       serverOptions,
 		AesCipherGCM:      aesCipher,
+		Moderator:         moderator,
 	}
 
 	// PLAYWRIGHT (DOES NOT WORK ON AWS LAMBDA)
