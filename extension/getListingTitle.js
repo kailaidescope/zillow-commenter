@@ -34,14 +34,24 @@ function handleMessages(message, sender, sendResponse) {
 
     if (houseRegex.test(listingUrl)) {
         const houseAddressWrapper = document.querySelector('.styles__AddressWrapper-fshdp-8-111-1__sc-13x5vko-0.jDtXfP');
-        const houseAddressElement = houseAddressWrapper.childNodes[0];
-        listingTitle = houseAddressElement ? houseAddressElement.textContent.trim() : null;
-        listingType = "house";
+        if (houseAddressWrapper) {
+            const houseAddressElement = houseAddressWrapper.childNodes[0];
+            listingTitle = houseAddressElement ? houseAddressElement.textContent.trim() : null;
+            listingType = "house";
+        } else {
+            console.log("houseAddressWrapper not found:",houseAddressWrapper);
+        }
     } else if (apartmentRegex.test(listingUrl)) {
-        const apartmentAddressWrapper = document.querySelector('.BuildingInfo__BuildingInfoContainer-d8oth5-3.jHvfsu');
-        const apartmentAddressElement = apartmentAddressWrapper.childNodes[1];
-        listingTitle = apartmentAddressElement ? apartmentAddressElement.textContent.trim() : null;
-        listingType = "apartment";
+        let apartmentAddressWrapper = document.querySelector('.BuildingInfo__BuildingInfoContainer-d8oth5-3.jHvfsu');
+        apartmentAddressWrapper = apartmentAddressWrapper ? apartmentAddressWrapper : document.querySelector('[data-test-id="bdp-building-info"]')
+        if (apartmentAddressWrapper) {
+            const apartmentAddressElement = apartmentAddressWrapper.childNodes[1];
+            listingTitle = apartmentAddressElement ? apartmentAddressElement.textContent.trim() : document.querySelector('[data-test-id="bdp-building-address"]');
+            listingTitle = listingTitle ? listingTitle : null
+            listingType = "apartment";
+        } else {
+            console.log("apartmentAddressWrapper not found:",apartmentAddressWrapper);
+        }
     } else {
         console.log("Listing was neither for a house nor apartment.");
     }

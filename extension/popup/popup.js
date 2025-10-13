@@ -641,23 +641,20 @@ async function getListingTitle() {
     // Get current tab ID
     let currentTabID;
 
-    if (CURRENT_TABS[0] != null) {
-        currentTabID = CURRENT_TABS[0].id;
-    } else {
-        const currentTabs = await chrome.tabs.query({active: true, lastFocusedWindow: true});  
+    const currentTabs = await chrome.tabs.query({active: true, lastFocusedWindow: true});  
 
-        if (currentTabs[0] == null) { 
-            console.log("Current tabs:",currentTabs)
-            console.error("Current tab is null when querying for listing title.");
-            throw new Error("Current tab is null when querying for listing title.");
-        } 
+    if (currentTabs[0] == null) { 
+        console.log("Current tabs:",currentTabs)
+        console.error("Current tab is null when querying for listing title.");
+        throw new Error("Current tab is null when querying for listing title.");
+    } 
 
-        currentTabID = currentTabs[0].id
-    }
+    currentTabID = currentTabs[0].id
     
 
     // Query current tab's content script for a title
-    //console.log("Got current tabs:",tabs)
+    console.log("Got current tabs:",currentTabs)
+    console.log("Getting listing title from webpage...")
     const response = await chrome.tabs.sendMessage(currentTabID, {action: "get_listing_title"});
 
     if (chrome.runtime.lastError) {
@@ -666,20 +663,25 @@ async function getListingTitle() {
         throw new Error("Content script not available:"+chrome.runtime.lastError.message);
     } 
 
+    console.log("Got listing title response:",response)
+
     if (!response.title) {
         console.error("Title not available in call.");
         throw new Error("Title not available in call.");
     }
 
     // Called when response is recieved from content script
-    console.log("Got title:",response.title);
+    console.log("Got title");
 
-    if (response.title === undefined) {
+    if (response.title === undefined || response.title == "") {
         console.error("Title is undefined");
         throw new Error("Title is undefined");
     }
 
-    return sanitizeListingTitle(response.title);
+    let sanitizedTitle = sanitizeListingTitle(response.title);
+    console.log("Title:",response.title, ", Sanitized Title:",sanitizedTitle)
+
+    return sanitizedTitle
 }
 
 // Sanitizes the listing title to only include printable ascii characters
