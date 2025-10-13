@@ -577,7 +577,7 @@ function initializeCommentInputValidation() {
     });
 }
 
-// Make comment input field submit upon "enter" and add newline upon "shift + enter"
+/* // Make comment input field submit upon "enter" and add newline upon "shift + enter"
 document.getElementById('comment-input').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
         if (e.shiftKey) {
@@ -594,7 +594,7 @@ document.getElementById('comment-input').addEventListener('keydown', function(e)
             document.getElementById('comment-form').requestSubmit();
         }
     }
-});
+}); */
 
 function initializeZillowetteIcon() {
     // Modal popup logic for zillowette icon
