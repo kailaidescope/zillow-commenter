@@ -31,3 +31,6 @@ go.work
 
 # All pem (certificate) files
 **.pem
+
+# Moderation configuration files
+**moderation.json
