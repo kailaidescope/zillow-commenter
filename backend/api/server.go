@@ -67,8 +67,9 @@ func (server *Server) GetPostgresPool() *pgxpool.Pool {
 type ServerOptions string
 
 const (
-	Production ServerOptions = "production"
-	Test       ServerOptions = "test"
+	Production  ServerOptions = "production"
+	Development ServerOptions = "development"
+	Test        ServerOptions = "test"
 )
 
 // GetNewServer creates a new Server instance with all necessary dependencies initialized.
@@ -120,13 +121,18 @@ func GetNewServer(serverOptions ServerOptions) (*Server, error) {
 		if err != nil {
 			return nil, errors.Join(errors.New("could not connect to the test database"), err)
 		}
+	case Development:
+		pool, err = pgxpool.New(context.Background(), os.Getenv("DEV_CONNECTION_STRING"))
+		if err != nil {
+			return nil, errors.Join(errors.New("could not connect to the development database"), err)
+		}
 	case Production:
 		pool, err = pgxpool.New(context.Background(), os.Getenv("CONNECTION_STRING"))
 		if err != nil {
 			return nil, errors.Join(errors.New("could not connect to the production database"), err)
 		}
 	default:
-		return nil, errors.New("cannot start server with option that is not 'Production' or 'Test'")
+		return nil, errors.New("cannot start server with option that is not 'Production' or 'Test' or 'Development'")
 	}
 
 	// ROUTER
