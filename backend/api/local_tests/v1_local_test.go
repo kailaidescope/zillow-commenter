@@ -1090,6 +1090,66 @@ func TestPostCommentParamsValidation_ListingType_ValidApt(t *testing.T) {
 }
 
 // ===================================================================================================================== //
+//                                               Moderation Tests                                                        //
+// ===================================================================================================================== //
+
+func TestPostComment_Moderation_Invalid(t *testing.T) {
+	teardown, _ := setupAndTeardown(t)
+	defer teardown(t)
+
+	params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
+
+	values := url.Values{}
+	values.Set("listing_id", params.ListingID)
+	values.Set("user_id", params.UserID)
+	values.Set("username", "TestUser")
+	values.Set("comment_text", "I hate LGBQ+ people.")
+	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", getTestListingType())
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/x-www-form-urlencoded").
+		SetFormDataFromValues(values).
+		Post(domainAddress + "/api/v1/comments")
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if resp.StatusCode() != 400 {
+		t.Errorf("Expected 400 for comment containing banned word, got %d: %s", resp.StatusCode(), formatResponse(resp))
+	}
+}
+
+func TestPostComment_Moderation_Valid(t *testing.T) {
+	teardown, _ := setupAndTeardown(t)
+	defer teardown(t)
+
+	params := sqlc.GetValidPostCommentParams(sqlc.ValidParamsIPv4)
+
+	values := url.Values{}
+	values.Set("listing_id", params.ListingID)
+	values.Set("user_id", params.UserID)
+	values.Set("username", "TestUser")
+	values.Set("comment_text", "I really like this house. It's a great place to live.")
+	values.Set("listing_title", params.ListingTitle.String)
+	values.Set("listing_type", getTestListingType())
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/x-www-form-urlencoded").
+		SetFormDataFromValues(values).
+		Post(domainAddress + "/api/v1/comments")
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if resp.StatusCode() != 201 {
+		t.Errorf("Expected 201 for a valid comment, got %d: %s", resp.StatusCode(), formatResponse(resp))
+	}
+}
+
+// ===================================================================================================================== //
 //                                              Miscellaneous Tests                                                      //
 // ===================================================================================================================== //
 

@@ -34,9 +34,12 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strings"
+	"time"
 
 	"zillow-commenter.com/m/db/postgres/sqlc"
 	"zillow-commenter.com/m/encryption"
+	"zillow-commenter.com/m/moderation"
 	"zillow-commenter.com/m/token"
 
 	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
@@ -57,6 +60,7 @@ type Server struct {
 	pool              *pgxpool.Pool
 	optionsMode       ServerOptions
 	AesCipherGCM      cipher.AEAD
+	AIModerator       *moderation.Moderator
 }
 
 func (server *Server) GetPostgresPool() *pgxpool.Pool {
@@ -168,6 +172,24 @@ func GetNewServer(serverOptions ServerOptions) (*Server, error) {
 		return nil, errors.Join(errors.New("failed to generate AES cipher for server"), err)
 	}
 
+	// MODERATOR
+
+	// Create a new Gemini-backed moderator using the supplied API key.
+	apiKey := strings.TrimSpace(os.Getenv("GEMINI_API_KEY"))
+	if apiKey == "" {
+		return nil, errors.New("GEMINI_API_KEY is not set; cannot create moderator")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	moderator, err := moderation.NewModerator(ctx, apiKey)
+	if err != nil {
+		return nil, errors.Join(errors.New("failed to create Gemini-backed moderator"), err)
+	}
+
+	// COLLECT
+
 	// Collect server singleton variables
 	server := &Server{
 		Router:            router,
@@ -177,6 +199,7 @@ func GetNewServer(serverOptions ServerOptions) (*Server, error) {
 		pool:              pool,
 		optionsMode:       serverOptions,
 		AesCipherGCM:      aesCipher,
+		AIModerator:       moderator,
 	}
 
 	// PLAYWRIGHT (DOES NOT WORK ON AWS LAMBDA)

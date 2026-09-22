@@ -125,6 +125,19 @@ func (server *Server) PostListingComment(c *gin.Context) {
 		return
 	}
 
+	// Run the comment through the AI moderation system to check for acceptability
+	if server.AIModerator != nil {
+		moderationResult, err := server.AIModerator.ModerateComment(c.Request.Context(), username, commentText)
+		if err != nil {
+			log.Println("Error moderating comment, skipping:", err)
+		}
+		if err == nil && !moderationResult.Acceptable {
+			log.Println("Comment rejected by AI moderation:", moderationResult.Reason)
+			c.JSON(http.StatusBadRequest, getReturnableErrorMessage("Comment rejected: "+moderationResult.Reason))
+			return
+		}
+	}
+
 	encryptedIPPackage, err := encryption.EncryptStringAESGCM(server.AesCipherGCM, userIP)
 	if err != nil {
 		log.Println("Error encrypting user IP:", err)

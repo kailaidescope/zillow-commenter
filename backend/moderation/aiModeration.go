@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	defaultModelName = "gemini-2.5-flash"
+	defaultModelName = "gemini-3.1-flash-lite"
 	maxCommentLength = 5000
 )
 
