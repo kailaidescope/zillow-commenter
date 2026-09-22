@@ -21,57 +21,44 @@ console.log("Get listing title script loaded");
 
 // Event listener
 function handleMessages(message, sender, sendResponse) {
-    //console.log("Getting message...");
+  //console.log("Getting message...");
 
-    console.log("Recieved message...");
+  console.log("Recieved message...");
 
-    const houseRegex = RegExp("^https:\/\/www\.zillow\.com\/homedetails\/.*");
-    const apartmentRegex = RegExp("^https:\/\/www\.zillow\.com\/apartments\/.*$");
-    const listingUrl = location.href;
+  const houseRegex = RegExp("^https:\/\/www\.zillow\.com\/homedetails\/.*");
+  const apartmentRegex = RegExp("^https:\/\/www\.zillow\.com\/apartments\/.*$");
+  const listingUrl = location.href;
 
-    let listingTitle;
-    let listingType;
+  let listingTitle;
+  let listingType;
 
-    if (houseRegex.test(listingUrl)) {
-        const houseAddressWrapper = document.querySelector('.styles__AddressWrapper-fshdp-8-111-1__sc-13x5vko-0.jDtXfP');
-        if (houseAddressWrapper) {
-            const houseAddressElement = houseAddressWrapper.childNodes[0];
-            listingTitle = houseAddressElement ? houseAddressElement.textContent.trim() : null;
-            listingType = "house";
-        } else {
-            console.log("houseAddressWrapper not found:",houseAddressWrapper);
-        }
-    } else if (apartmentRegex.test(listingUrl)) {
-        let apartmentAddressWrapper = document.querySelector('.BuildingInfo__BuildingInfoContainer-d8oth5-3.jHvfsu');
-        apartmentAddressWrapper = apartmentAddressWrapper ? apartmentAddressWrapper : document.querySelector('[data-test-id="bdp-building-info"]')
-        if (apartmentAddressWrapper) {
-            const apartmentAddressElement = apartmentAddressWrapper.childNodes[1];
-            listingTitle = apartmentAddressElement ? apartmentAddressElement.textContent.trim() : document.querySelector('[data-test-id="bdp-building-address"]');
-            listingTitle = listingTitle ? listingTitle : null
-            listingType = "apartment";
-        } else {
-            console.log("apartmentAddressWrapper not found:",apartmentAddressWrapper);
-        }
-    } else {
-        console.log("Listing was neither for a house nor apartment.");
-    }
+  if (houseRegex.test(listingUrl)) {
+    listingTitle = document.title.split("|")[0].trim();
+    listingType = "house";
+  } else if (apartmentRegex.test(listingUrl)) {
+    listingTitle = document.title.split("|")[0].trim();
+    listingType = "apartment";
+  } else {
+    console.log("Listing was neither for a house nor apartment.");
+  }
 
-    console.log("Listing title, listing type: "+listingTitle+", "+listingType)
-    
+  console.log(
+    "Listing title, listing type: " + listingTitle + ", " + listingType,
+  );
 
-    
-    if (message.action != "get_listing_title") {
-        sendResponse({error: "function not supported"})
-    }
+  if (message.action != "get_listing_title") {
+    sendResponse({ error: "function not supported" });
+    return false;
+  }
 
-    if (listingTitle && listingType) {
-        sendResponse({title: listingTitle, type: listingType});
-    } else {
-        sendResponse({error: "listing not house nor apartment"});
-    }
+  if (listingTitle && listingType) {
+    sendResponse({ title: listingTitle, type: listingType });
+  } else {
+    sendResponse({ error: "listing not house nor apartment" });
+  }
 
-    // Since `fetch` is asynchronous, must send an explicit `true`
-    return true;
+  // Since `fetch` is asynchronous, must send an explicit `true`
+  return true;
 }
 
 chrome.runtime.onMessage.addListener(handleMessages);
